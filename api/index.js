@@ -57,7 +57,7 @@ module.exports = async (req, res) => {
         // Navigate to the provided link with faster options
         await page.goto(link, {
             waitUntil: 'networkidle2', // Wait for less network activity
-            timeout: 5000 // Reduced timeout for initial navigation
+            timeout: 8000 // Reduced timeout for initial navigation
         });
 
         // Use `waitForNetworkIdle` for more reliable waiting
