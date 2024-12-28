@@ -62,19 +62,23 @@ module.exports = async (req, res) => {
             timeout: 15000
         });
 
-        // Scrape product title, price, and image
-        const productData = await page.evaluate(() => {
-            const titleElement = document.querySelector('div.title--wrap--UUHae_g h1[data-pl="product-title"]'); // Selector for title
-            const priceElement = document.querySelector('.price--currentPriceText--V8_y_b5.pdp-comp-price-current.product-price-value'); // Selector for price
-            const imageElement = document.querySelector('.slider--item--FefNjlj img'); // Selector for the first image in the slider
+        // Wait for the elements to be present before scraping
+await page.waitForSelector('div.title--wrap--UUHae_g h1[data-pl="product-title"]', { timeout: 15000 });
+await page.waitForSelector('.price--currentPriceText--V8_y_b5.pdp-comp-price-current.product-price-value', { timeout: 15000 });
+await page.waitForSelector('.slider--item--FefNjlj img', { timeout: 15000 });
 
+// Now scrape the product data
+const productData = await page.evaluate(() => {
+    const titleElement = document.querySelector('div.title--wrap--UUHae_g h1[data-pl="product-title"]');
+    const priceElement = document.querySelector('.price--currentPriceText--V8_y_b5.pdp-comp-price-current.product-price-value');
+    const imageElement = document.querySelector('.slider--item--FefNjlj img');
 
-            return {
-                title: titleElement ? titleElement.innerText : null,
-                price: priceElement ? priceElement.innerText : null,
-                image: imageElement ? imageElement.src : null
-            };
-        });
+    return {
+        title: titleElement ? titleElement.innerText : null,
+        price: priceElement ? priceElement.innerText : null,
+        image: imageElement ? imageElement.src : null
+    };
+});
 
         clearTimeout(timeout);
 
