@@ -64,16 +64,16 @@ module.exports = async (req, res) => {
         await page.waitForNetworkIdle({ idleTime: 500, timeout: 5000 });
 
         // Use `evaluate` to fetch data directly
-        const productData = await page.evaluate(async () => {
+        const productData = await page.evaluate(async (page) => {
             const titleElementHandle = await page.waitForFunction(
                 () => document.querySelector('div.title--wrap--UUHae_g h1[data-pl="product-title"]'),
                 { timeout: 5000 }
             );
             const titleElement = await titleElementHandle.getProperty('textContent');
-            const title = await titleElement.jsonValue(); 
+            const title = await titleElement.jsonValue();
 
             return { title };
-        },[page]);
+        }, page);
         clearTimeout(timeout);
 
         await page.close();
