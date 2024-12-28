@@ -73,7 +73,7 @@ module.exports = async (req, res) => {
             const title = await titleElement.jsonValue(); 
 
             return { title };
-        });
+        },[page]);
         clearTimeout(timeout);
 
         await page.close();
