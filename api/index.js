@@ -62,7 +62,7 @@ module.exports = async (req, res) => {
 
         // Scrape product title, price, and image
         const productData = await page.evaluate(() => {
-            const titleElement = document.querySelector('div.title--wrap--UUHae_g h1[data-pl="product-title"]')?.innerHTML; // Selector for title
+            const titleElement = document.querySelector('div.title--wrap--UUHae_g h1[data-pl="product-title"]'); // Selector for title
 
 
             return {
