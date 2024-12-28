@@ -67,8 +67,8 @@ module.exports = async (req, res) => {
         const productData = await page.evaluate(() => {
             const title = document.querySelector('div.title--wrap--UUHae_g h1[data-pl="product-title"]')?.innerText;
             const price = document.querySelector('.price--currentPriceText--V8_y_b5.pdp-comp-price-current.product-price-value')?.innerText;
-            const image = document.querySelector('.slider--item--FefNjlj img')?.src;
-            return { title, price, image };
+        
+            return { title, price};
         });
 
         clearTimeout(timeout);
