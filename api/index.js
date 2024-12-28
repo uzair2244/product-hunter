@@ -62,15 +62,11 @@ module.exports = async (req, res) => {
 
         // Scrape product title, price, and image
         const productData = await page.evaluate(() => {
-            const titleElement = document.querySelector('h1[data-pl="product-title"]')?.innerHTML; // Selector for title
-            const priceElement = document.querySelector('.price--currentPriceText--V8_y_b5.pdp-comp-price-current.product-price-value')?.innerHTML; // Selector for price
-            const imageElement = document.querySelector('.slider--item--FefNjlj img')?.innerHTML; // Selector for the first image in the slider
+            const titleElement = document.querySelector('div.title--wrap--UUHae_g h1[data-pl="product-title"]')?.innerHTML; // Selector for title
 
 
             return {
                 title: titleElement ? titleElement.innerText : null,
-                price: priceElement ? priceElement.innerText : null,
-                image: imageElement ? imageElement.src : null
             };
         });
 
