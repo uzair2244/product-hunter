@@ -33,71 +33,70 @@ module.exports = async (req, res) => {
     let page = null;
 
     try {
-    // Set a faster timeout for the entire operation
-    const timeout = setTimeout(() => {
-        throw new Error('Operation timed out');
-    }, 20000); // Reduced to 20 seconds
+        // Set a faster timeout for the entire operation
+        const timeout = setTimeout(() => {
+            throw new Error('Operation timed out');
+        }, 10000); // Reduced to 10 seconds
 
-    browser = await getBrowser();
-    page = await browser.newPage();
+        browser = await getBrowser();
+        page = await browser.newPage();
 
-    // Optimize page settings
-    await page.setRequestInterception(true);
-    page.on('request', (request) => {
-        // Block unnecessary resources
-        const resourceType = request.resourceType();
-        if (['image', 'stylesheet', 'font', 'media'].includes(resourceType)) {
-            request.abort();
-        } else {
-            request.continue();
-        }
-    });
+        // Optimize page settings
+        await page.setRequestInterception(true);
+        page.on('request', (request) => {
+            // Block unnecessary resources
+            const resourceType = request.resourceType();
+            if (['image', 'stylesheet', 'font', 'media', 'script'].includes(resourceType)) {
+                request.abort();
+            } else {
+                request.continue();
+            }
+        });
 
-    // Set user agent
-    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+        // Set user agent
+        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
 
-    // Navigate to the provided link
-    await page.goto(link, {
-        waitUntil: "domcontentloaded",
-        timeout: 10000 // Reduced to 10 seconds
-    });
+        // Navigate to the provided link
+        await page.goto(link, {
+            waitUntil: "domcontentloaded",
+            timeout: 10000 // Keep at 10 seconds
+        });
 
-    // Wait for the elements to be present before scraping
-    await page.waitForSelector('div.title--wrap--UUHae_g h1[data-pl="product-title"]', { timeout: 10000 }); // Reduced to 10 seconds
-    await page.waitForSelector('.price--currentPriceText--V8_y_b5.pdp-comp-price-current.product-price-value', { timeout: 10000 }); // Reduced to 10 seconds
-    await page.waitForSelector('.slider--item--FefNjlj img', { timeout: 10000 }); // Reduced to 10 seconds
+        // Wait for the elements to be present before scraping
+        await page.waitForSelector('div.title--wrap--UUHae_g h1[data-pl="product-title"]', { timeout: 5000 }); // Reduced to 5 seconds
+        await page.waitForSelector('.price--currentPriceText--V8_y_b5.pdp-comp-price-current.product-price-value', { timeout: 5000 }); // Reduced to 5 seconds
+        await page.waitForSelector('.slider--item--FefNjlj img', { timeout: 5000 }); // Reduced to 5 seconds
 
-    // Now scrape the product data
-    const productData = await page.evaluate(() => {
-        const titleElement = document.querySelector('div.title--wrap--UUHae_g h1[data-pl="product-title"]');
-        const priceElement = document.querySelector('.price--currentPriceText--V8_y_b5.pdp-comp-price-current.product-price-value');
-        const imageElement = document.querySelector('.slider--item--FefNjlj img');
+        // Now scrape the product data
+        const productData = await page.evaluate(() => {
+            const titleElement = document.querySelector('div.title--wrap--UUHae_g h1[data-pl="product-title"]');
+            const priceElement = document.querySelector('.price--currentPriceText--V8_y_b5.pdp-comp-price-current.product-price-value');
+            const imageElement = document.querySelector('.slider--item--FefNjlj img');
 
-        return {
-            title: titleElement ? titleElement.innerText : null,
-            price: priceElement ? priceElement.innerText : null,
-            image: imageElement ? imageElement.src : null
-        };
-    });
+            return {
+                title: titleElement ? titleElement.innerText : null,
+                price: priceElement ? priceElement.innerText : null,
+                image: imageElement ? imageElement.src : null
+            };
+        });
 
-    clearTimeout(timeout);
+        clearTimeout(timeout);
 
-    // Only close the page, keep browser instance
-    await page.close();
+        // Only close the page, keep browser instance
+        await page.close();
 
-    return res.status(200).json(productData);
+        return res.status(200).json(productData);
 
-} catch (error) {
-    console.error("Error scraping product data:", error);
+    } catch (error) {
+        console.error("Error scraping product data:", error);
 
-    // Cleanup on error
-    if (page) await page.close().catch(console.error);
-    if (browser) await browser.close().catch(console.error);
-    _browser = null;
+        if (page) await page.close().catch(console.error);
+        if (browser) await browser.close().catch(console.error);
+        _browser = null;
 
-    return res.status(500).json({
-        message: "Error fetching product data",
-        error: error.message
-    });
-}
+        return res.status(500).json({
+            message: "Error fetching product data",
+            error: error.message
+        });
+    }
 };
