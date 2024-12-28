@@ -1,5 +1,3 @@
-// worker for ali-express
-
 const chromium = require('@sparticuz/chromium');
 const puppeteer = require('puppeteer-core');
 
@@ -15,6 +13,7 @@ async function getBrowser() {
         executablePath: await chromium.executablePath(),
         headless: true,
         ignoreHTTPSErrors: true,
+        timeout: 10000 // Set browser launch timeout
     });
     return _browser;
 }
@@ -24,7 +23,7 @@ module.exports = async (req, res) => {
         return res.status(405).json({ message: "Method Not Allowed" });
     }
 
-    const { link } = req.body; // Changed from query to link
+    const { link } = req.body;
     if (!link) {
         return res.status(400).json({ message: "Link is required" });
     }
@@ -33,20 +32,19 @@ module.exports = async (req, res) => {
     let page = null;
 
     try {
-        // Set a faster timeout for the entire operation
-        const timeout = setTimeout(() => {
-            throw new Error('Operation timed out');
-        }, 10000); // Reduced to 10 seconds
-
         browser = await getBrowser();
         page = await browser.newPage();
 
-        // Optimize page settings
+        // Set a faster timeout for the entire operation
+        const timeout = setTimeout(() => {
+            throw new Error('Operation timed out');
+        }, 10000); // 10 seconds timeout
+
+        // Optimize network requests
         await page.setRequestInterception(true);
         page.on('request', (request) => {
-            // Block unnecessary resources
             const resourceType = request.resourceType();
-            if (['image', 'stylesheet', 'font', 'media', 'script'].includes(resourceType)) {
+            if (['image', 'stylesheet', 'font', 'media'].includes(resourceType)) {
                 request.abort();
             } else {
                 request.continue();
@@ -56,33 +54,25 @@ module.exports = async (req, res) => {
         // Set user agent
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
 
-        // Navigate to the provided link
+        // Navigate to the provided link with faster options
         await page.goto(link, {
-            waitUntil: "domcontentloaded",
-            timeout: 10000 // Keep at 10 seconds
+            waitUntil: 'networkidle2', // Wait for less network activity
+            timeout: 5000 // Reduced timeout for initial navigation
         });
 
-        // Wait for the elements to be present before scraping
-        await page.waitForSelector('div.title--wrap--UUHae_g h1[data-pl="product-title"]', { timeout: 5000 }); // Reduced to 5 seconds
-        await page.waitForSelector('.price--currentPriceText--V8_y_b5.pdp-comp-price-current.product-price-value', { timeout: 5000 }); // Reduced to 5 seconds
-        await page.waitForSelector('.slider--item--FefNjlj img', { timeout: 5000 }); // Reduced to 5 seconds
+        // Use `waitForNetworkIdle` for more reliable waiting
+        await page.waitForNetworkIdle({ idleTime: 500, timeout: 5000 });
 
-        // Now scrape the product data
+        // Use `evaluate` to fetch data directly
         const productData = await page.evaluate(() => {
-            const titleElement = document.querySelector('div.title--wrap--UUHae_g h1[data-pl="product-title"]');
-            const priceElement = document.querySelector('.price--currentPriceText--V8_y_b5.pdp-comp-price-current.product-price-value');
-            const imageElement = document.querySelector('.slider--item--FefNjlj img');
-
-            return {
-                title: titleElement ? titleElement.innerText : null,
-                price: priceElement ? priceElement.innerText : null,
-                image: imageElement ? imageElement.src : null
-            };
+            const title = document.querySelector('div.title--wrap--UUHae_g h1[data-pl="product-title"]')?.innerText;
+            const price = document.querySelector('.price--currentPriceText--V8_y_b5.pdp-comp-price-current.product-price-value')?.innerText;
+            const image = document.querySelector('.slider--item--FefNjlj img')?.src;
+            return { title, price, image };
         });
 
         clearTimeout(timeout);
 
-        // Only close the page, keep browser instance
         await page.close();
 
         return res.status(200).json(productData);
