@@ -130,8 +130,12 @@ module.exports = async (req, res) => {
 
                 // Generic price selectors
                 const priceSelectors = [
-                    // Daraz specific selectors - updated for current price
-                    '.pdp-price_type_normal',  // This will specifically target the current price span
+                    // Exact Daraz selectors based on the HTML structure
+                    '.pdp-product-price span.pdp-price_type_normal',
+                    '.pdp-product-price > span.pdp-price:first-child',
+                    'span.pdp-price.pdp-price_type_normal.pdp-price_color_orange',
+                    // Then keep the existing selectors
+                    '.pdp-price_type_normal',
                     '.pdp-product-price .pdp-price:first-child',
                     '.pdp-price:not(.pdp-price_type_deleted)',
                     // Daraz enhanced selectors
@@ -200,29 +204,29 @@ module.exports = async (req, res) => {
                 // Enhanced price finding logic
                 for (const selector of priceSelectors) {
                     const elements = document.querySelectorAll(selector);
+                    console.log(`Trying selector: ${selector}, found elements: ${elements.length}`);
                     for (const element of elements) {
                         let priceText = element.innerText || element.textContent;
+                        console.log(`Found price text: ${priceText}`);
                         if (priceText) {
                             // Ignore if it's a deleted/original price
                             if (element.classList.contains('pdp-price_type_deleted')) {
+                                console.log('Skipping deleted price');
                                 continue;
                             }
 
                             // Handle different currency formats
                             priceText = priceText.replace(/Rs\.|PKR|₨/i, '').trim();
+                            console.log(`Cleaned price text: ${priceText}`);
 
                             // Extract numbers and decimals
                             const priceMatch = priceText.match(/[\d,]+(\.\d{1,2})?/);
                             if (priceMatch) {
                                 price = priceMatch[0].replace(/,/g, '');
-                                // Add appropriate currency symbol
                                 if (window.location.href.includes('daraz')) {
                                     price = 'Rs. ' + price;
-                                } else if (window.location.href.includes('temu')) {
-                                    price = '$' + price;
-                                } else if (!price.match(/[\$\£\€]/)) {
-                                    price = '$' + price;
                                 }
+                                console.log(`Final price: ${price}`);
                                 break;
                             }
                         }
@@ -267,7 +271,12 @@ module.exports = async (req, res) => {
                             title: mobileSelectors.find(s => document.querySelector(s)),
                             image: imageSelectors.find(s => document.querySelector(s)),
                             price: priceSelectors.find(s => document.querySelector(s))
-                        }
+                        },
+                        priceAttempts: priceSelectors.map(s => ({
+                            selector: s,
+                            found: !!document.querySelector(s),
+                            text: document.querySelector(s)?.innerText || null
+                        }))
                     }
                 };
             });
