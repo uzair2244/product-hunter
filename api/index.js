@@ -71,28 +71,8 @@ module.exports = async (req, res) => {
                 timeout: 5000
             });
 
-            // Wait for price element with a shorter timeout
-            await page.waitForSelector('.pdp-product-price', { timeout: 3000 });
-
-            // Enhanced price selectors specifically for Daraz
+            // Quick extract with minimal selectors
             const productData = await page.evaluate(() => {
-                const priceSelectors = [
-                    // Daraz specific selectors (most specific first)
-                    '.pdp-price.pdp-price_type_normal.pdp-price_color_orange.pdp-price_size_xl',
-                    'span.pdp-price_type_normal.pdp-price_color_orange.pdp-price_size_xl',
-                    '.notranslate.pdp-price.pdp-price_type_normal.pdp-price_color_orange.pdp-price_size_xl',
-                    // Fallbacks (but still specific enough)
-                    '.pdp-product-price > .pdp-price_color_orange.pdp-price_size_xl',
-                    '.pdp-product-price > span.pdp-price_color_orange:not(.pdp-price_type_deleted)',
-                    // Simple fallbacks
-                    '.pdp-price',
-                    '.pdp-product-price span'
-                ];
-
-                let title = null;
-                let image = null;
-                let price = null;
-
                 // Generic title selectors that work across multiple sites
                 const mobileSelectors = [
                     // Daraz specific selectors (enhanced)
@@ -148,31 +128,36 @@ module.exports = async (req, res) => {
                     '.gallery-image'
                 ];
 
-                // Function to wait for element
-                const waitForElement = (selector, timeout = 2000) => {
-                    return new Promise((resolve) => {
-                        if (document.querySelector(selector)) {
-                            return resolve(document.querySelector(selector));
-                        }
+                // Generic price selectors
+                const priceSelectors = [
+                    // Daraz enhanced selectors
+                    '.pdp-price',
+                    '.pdp-product-price',
+                    '.pdp-price_type_normal',
+                    '[data-spm="price"]',
+                    '.pdp-mod-product-price-view',      // Additional Daraz selector
+                    '.pdp-price-box',                   // Additional Daraz selector
+                    // Temu specific selectors
+                    '.PriceComponent_wrapper__2Kc_j',
+                    '.ProductPrice_price__3TmZi',
+                    '[data-testid="product-price"]',
+                    '.price-current-value',
+                    // Previous selectors remain...
+                    '.price--originalText--Zsc6sMk',
+                    '.product-price-current',
+                    '.uniform-banner-box-price',
+                    '#priceblock_ourprice',
+                    '.a-price-whole',
+                    '#price_inside_buybox',
+                    '[itemprop="price"]',
+                    '.product-price',
+                    '.price-current',
+                    '.current-price'
+                ];
 
-                        const observer = new MutationObserver(() => {
-                            if (document.querySelector(selector)) {
-                                resolve(document.querySelector(selector));
-                                observer.disconnect();
-                            }
-                        });
-
-                        observer.observe(document.body, {
-                            childList: true,
-                            subtree: true
-                        });
-
-                        setTimeout(() => {
-                            observer.disconnect();
-                            resolve(null);
-                        }, timeout);
-                    });
-                };
+                let title = null;
+                let image = null;
+                let price = null;
 
                 // Enhanced title finding logic with additional checks
                 for (const selector of mobileSelectors) {
@@ -208,20 +193,27 @@ module.exports = async (req, res) => {
                     if (image) break;
                 }
 
-                // Simple price finding logic
+                // Enhanced price finding logic
                 for (const selector of priceSelectors) {
                     const elements = document.querySelectorAll(selector);
                     for (const element of elements) {
                         let priceText = element.innerText || element.textContent;
                         if (priceText) {
-                            // Clean up the text
-                            priceText = priceText.trim();
+                            // Handle different currency formats
+                            priceText = priceText.replace(/Rs\.|PKR|₨/i, '').trim();
 
-                            // Look for price with Rs. format
-                            const match = priceText.match(/Rs\.?\s*(\d+(?:,\d{3})*(?:\.\d{2})?)/i);
-                            if (match) {
-                                const numericValue = match[1].replace(/,/g, '');
-                                price = 'Rs. ' + numericValue;
+                            // Extract numbers and decimals
+                            const priceMatch = priceText.match(/[\d,]+(\.\d{1,2})?/);
+                            if (priceMatch) {
+                                price = priceMatch[0].replace(/,/g, '');
+                                // Add appropriate currency symbol
+                                if (window.location.href.includes('daraz')) {
+                                    price = 'Rs. ' + price;
+                                } else if (window.location.href.includes('temu')) {
+                                    price = '$' + price;
+                                } else if (!price.match(/[\$\£\€]/)) {
+                                    price = '$' + price;
+                                }
                                 break;
                             }
                         }
@@ -247,6 +239,16 @@ module.exports = async (req, res) => {
                     }
                 }
 
+                // Clean up price if needed
+                if (price) {
+                    // Ensure price starts with a currency symbol if it doesn't have one
+                    if (!price.match(/[\$\£\€]/)) {
+                        price = '$' + price;
+                    }
+                    // Remove any extra text after the price
+                    price = price.split('\n')[0].trim();
+                }
+
                 return {
                     title,
                     image,
@@ -256,13 +258,7 @@ module.exports = async (req, res) => {
                             title: mobileSelectors.find(s => document.querySelector(s)),
                             image: imageSelectors.find(s => document.querySelector(s)),
                             price: priceSelectors.find(s => document.querySelector(s))
-                        },
-                        priceElements: Array.from(document.querySelectorAll('.pdp-product-price'))
-                            .map(el => ({
-                                text: el.innerText,
-                                html: el.innerHTML,
-                                classes: Array.from(el.classList).join(' ')
-                            }))
+                        }
                     }
                 };
             });
