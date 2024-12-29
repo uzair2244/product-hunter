@@ -178,51 +178,53 @@ module.exports = async (req, res) => {
                 }
 
                 // Enhanced price finding logic
-                for (const selector of priceSelectors) {
-                    const elements = document.querySelectorAll(selector);
-                    for (const element of elements) {
-                        // Skip if element is inside origin-block or has deleted/lightgray classes
-                        if (element.closest('.origin-block') ||
-                            element.classList.contains('pdp-price_type_deleted') ||
-                            element.classList.contains('pdp-price_color_lightgray')) {
-                            continue;
-                        }
+                try {
+                    // First, get the main price container
+                    const priceContainer = document.querySelector('.pdp-product-price');
+                    if (priceContainer) {
+                        // Get the first price element that's a direct child (not in origin-block)
+                        const currentPrice = priceContainer.querySelector(':scope > span.pdp-price_color_orange');
 
-                        let priceText = element.innerText || element.textContent;
-                        if (priceText) {
-                            // Clean up the text
-                            priceText = priceText.trim();
+                        if (currentPrice) {
+                            let priceText = currentPrice.innerText || currentPrice.textContent;
+                            if (priceText) {
+                                // Clean up the text
+                                priceText = priceText.trim();
 
-                            // Look for price with Rs. format
-                            const match = priceText.match(/Rs\.?\s*(\d+(?:,\d{3})*(?:\.\d{2})?)/i);
-                            if (match) {
-                                const numericValue = match[1].replace(/,/g, '');
-                                price = 'Rs. ' + numericValue;
-                                break;
-                            }
-                        }
-                    }
-                    if (price) break;
-                }
-
-                // Super fallback for price with validation
-                if (!price) {
-                    const priceRegex = /Rs\.?\s*(\d+(?:,\d{3})*(?:\.\d{2})?)/i;
-                    const allElements = document.querySelectorAll('*');
-                    for (const element of allElements) {
-                        const text = element.innerText || element.textContent;
-                        if (text) {
-                            const match = text.match(priceRegex);
-                            if (match) {
-                                const numericValue = match[1].replace(/,/g, '');
-                                // Verify the numeric value is reasonable (greater than 1)
-                                if (parseInt(numericValue) > 1) {
+                                // Look for price with Rs. format
+                                const match = priceText.match(/Rs\.?\s*(\d+(?:,\d{3})*(?:\.\d{2})?)/i);
+                                if (match) {
+                                    const numericValue = match[1].replace(/,/g, '');
                                     price = 'Rs. ' + numericValue;
-                                    break;
                                 }
                             }
                         }
                     }
+
+                    // If still no price found, try fallback selectors
+                    if (!price) {
+                        const priceSelectors = [
+                            ':scope > span.pdp-price_color_orange.pdp-price_size_xl',
+                            ':scope > span.notranslate.pdp-price_type_normal.pdp-price_color_orange'
+                        ];
+
+                        for (const selector of priceSelectors) {
+                            const priceElement = document.querySelector('.pdp-product-price').querySelector(selector);
+                            if (priceElement && !priceElement.closest('.origin-block')) {
+                                let priceText = priceElement.innerText || priceElement.textContent;
+                                if (priceText) {
+                                    const match = priceText.match(/Rs\.?\s*(\d+(?:,\d{3})*(?:\.\d{2})?)/i);
+                                    if (match) {
+                                        const numericValue = match[1].replace(/,/g, '');
+                                        price = 'Rs. ' + numericValue;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error('Price extraction error:', error);
                 }
 
                 // Super fallback for image
@@ -250,14 +252,14 @@ module.exports = async (req, res) => {
                     debug: {
                         foundSelectors: {
                             title: mobileSelectors.find(s => document.querySelector(s)),
-                            image: imageSelectors.find(s => document.querySelector(s)),
-                            price: priceSelectors.find(s => document.querySelector(s))
+                            image: imageSelectors.find(s => document.querySelector(s))
                         },
                         priceElements: Array.from(document.querySelectorAll('.pdp-product-price'))
                             .map(el => ({
                                 text: el.innerText,
                                 html: el.innerHTML,
-                                classes: Array.from(el.classList).join(' ')
+                                classes: Array.from(el.classList).join(' '),
+                                firstChildClasses: el.firstElementChild ? Array.from(el.firstElementChild.classList).join(' ') : null
                             }))
                     }
                 };
