@@ -74,7 +74,7 @@ module.exports = async (req, res) => {
             // Wait for price element with a shorter timeout
             await page.waitForSelector('.pdp-product-price', { timeout: 3000 });
 
-            // Enhanced price finding logic
+            // Enhanced price finding logic without waiting
             const productData = await page.evaluate(() => {
                 let title = null;
                 let image = null;
@@ -195,30 +195,21 @@ module.exports = async (req, res) => {
                     if (image) break;
                 }
 
-                // Direct price extraction without waiting
-                const priceContainer = document.querySelector('.pdp-product-price');
-                if (priceContainer) {
-                    // Try multiple approaches to get the price
-                    const priceSelectors = [
-                        'span.pdp-price_color_orange.pdp-price_size_xl:not(.pdp-price_type_deleted)',
-                        '.pdp-price.pdp-price_type_normal.pdp-price_color_orange',
-                        '.notranslate.pdp-price_color_orange:not(.pdp-price_type_deleted)'
-                    ];
-
-                    for (const selector of priceSelectors) {
-                        const priceElement = priceContainer.querySelector(selector);
-                        if (priceElement && !priceElement.closest('.origin-block')) {
-                            let priceText = priceElement.innerText || priceElement.textContent;
-                            if (priceText) {
-                                const match = priceText.match(/Rs\.?\s*(\d+(?:,\d{3})*(?:\.\d{2})?)/i);
-                                if (match) {
-                                    const numericValue = match[1].replace(/,/g, '');
-                                    price = 'Rs. ' + numericValue;
-                                    break;
-                                }
+                // Direct price extraction
+                try {
+                    const priceElement = document.querySelector('.pdp-product-price > span.pdp-price_color_orange.pdp-price_size_xl');
+                    if (priceElement && !priceElement.closest('.origin-block')) {
+                        let priceText = priceElement.innerText || priceElement.textContent;
+                        if (priceText) {
+                            const match = priceText.match(/Rs\.?\s*(\d+(?:,\d{3})*(?:\.\d{2})?)/i);
+                            if (match) {
+                                const numericValue = match[1].replace(/,/g, '');
+                                price = 'Rs. ' + numericValue;
                             }
                         }
                     }
+                } catch (error) {
+                    console.error('Price extraction error:', error);
                 }
 
                 // Super fallback for image
@@ -253,8 +244,7 @@ module.exports = async (req, res) => {
                             .map(el => ({
                                 text: el.innerText,
                                 html: el.innerHTML,
-                                classes: Array.from(el.classList).join(' '),
-                                hasOrangePrice: !!el.querySelector('.pdp-price_color_orange')
+                                classes: Array.from(el.classList).join(' ')
                             }))
                     }
                 };
