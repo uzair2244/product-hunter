@@ -195,8 +195,31 @@ module.exports = async (req, res) => {
                     const elements = document.querySelectorAll(selector);
                     console.log(`Trying selector: ${selector}, found elements: ${elements.length}`);
                     for (const element of elements) {
+                        // Special handling for Daraz
+                        if (window.location.href.includes('daraz')) {
+                            // Try to find the price by specific Daraz structure
+                            const priceElement = document.querySelector('.pdp-price_color_orange');
+                            if (priceElement) {
+                                price = priceElement.innerText || priceElement.textContent;
+                                console.log('Found Daraz price:', price);
+                                break;
+                            }
+
+                            // Fallback: try to find any visible price that's not marked as deleted
+                            const allPrices = document.querySelectorAll('.pdp-price');
+                            for (const p of allPrices) {
+                                if (!p.classList.contains('pdp-price_type_deleted') &&
+                                    (p.classList.contains('pdp-price_color_orange') || p.classList.contains('pdp-price_type_normal'))) {
+                                    price = p.innerText || p.textContent;
+                                    console.log('Found Daraz fallback price:', price);
+                                    break;
+                                }
+                            }
+                            if (price) break;
+                        }
+
+                        // Original price finding logic for other sites
                         let priceText = element.innerText || element.textContent;
-                        console.log(`Found price text: ${priceText}`);
                         if (priceText) {
                             // Ignore if it's a deleted/original price
                             if (element.classList.contains('pdp-price_type_deleted')) {
