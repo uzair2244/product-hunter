@@ -187,32 +187,88 @@ module.exports = async (req, res) => {
 
                 // Add this before the price selectors loop
                 if (window.location.href.includes('daraz')) {
-                    // Aggressive price search with better validation
-                    const allElements = document.querySelectorAll('*');
-                    for (const element of allElements) {
-                        const text = element.innerText || element.textContent;
-                        if (text) {
-                            // Look for currency symbols followed by numbers with better validation
-                            // Minimum price threshold of 100 to avoid picking up small numbers
-                            const priceRegex = /(?:Rs\.?|₨|TK|BDT)?\s*([\d,]+(?:\.\d{2})?)/i;
-                            const match = text.match(priceRegex);
-                            if (match) {
-                                const numericValue = parseFloat(match[1].replace(/,/g, ''));
-                                // Validate the price is reasonable (greater than 100)
-                                if (numericValue >= 100) {
-                                    price = 'Rs. ' + numericValue;
-                                    console.log('Found price through aggressive search:', price);
-                                    console.log('Found in element:', {
-                                        tagName: element.tagName,
-                                        className: element.className,
-                                        id: element.id,
-                                        text: text.trim()
+                    let maxPrice = 0;
+                    let maxPriceElement = null;
+
+                    // Try specific Daraz price containers first
+                    const specificSelectors = [
+                        '.pdp-product-price',
+                        '.pdp-block-price',
+                        '.pdp-mod-product-info',
+                        '.origin-block',
+                        '[data-mod-name="pdp_order"]'
+                    ];
+
+                    for (const selector of specificSelectors) {
+                        const container = document.querySelector(selector);
+                        if (container) {
+                            const text = container.innerText || container.textContent;
+                            const matches = text.match(/(?:Rs\.?|₨|TK|BDT)?\s*([\d,]+(?:\.\d{2})?)/gi);
+                            if (matches) {
+                                matches.forEach(match => {
+                                    const numericValue = parseFloat(match.replace(/[^\d.]/g, ''));
+                                    if (numericValue > maxPrice) {
+                                        maxPrice = numericValue;
+                                        maxPriceElement = container;
+                                    }
+                                });
+                            }
+                        }
+                    }
+
+                    // If no price found, try aggressive search
+                    if (maxPrice === 0) {
+                        const allElements = document.querySelectorAll('*');
+                        for (const element of allElements) {
+                            const text = element.innerText || element.textContent;
+                            if (text) {
+                                const matches = text.match(/(?:Rs\.?|₨|TK|BDT)?\s*([\d,]+(?:\.\d{2})?)/gi);
+                                if (matches) {
+                                    matches.forEach(match => {
+                                        const numericValue = parseFloat(match.replace(/[^\d.]/g, ''));
+                                        // Only consider prices above 500 to avoid small numbers
+                                        if (numericValue > maxPrice && numericValue >= 500) {
+                                            maxPrice = numericValue;
+                                            maxPriceElement = element;
+                                        }
                                     });
-                                    break;
                                 }
                             }
                         }
                     }
+
+                    if (maxPrice > 0) {
+                        price = 'Rs. ' + maxPrice;
+                        console.log('Found price:', price);
+                        console.log('Price element:', {
+                            tagName: maxPriceElement?.tagName,
+                            className: maxPriceElement?.className,
+                            id: maxPriceElement?.id,
+                            text: maxPriceElement?.innerText?.trim()
+                        });
+                    }
+
+                    // Add extensive debug logging
+                    console.log('Price Debug:', {
+                        url: window.location.href,
+                        maxPrice,
+                        allPrices: Array.from(document.querySelectorAll('*'))
+                            .filter(el => {
+                                const text = el.innerText || el.textContent;
+                                return text && text.match(/(?:Rs\.?|₨|TK|BDT)?\s*[\d,]+(?:\.\d{2})?/i);
+                            })
+                            .map(el => ({
+                                text: (el.innerText || el.textContent).trim(),
+                                numericValue: parseFloat((el.innerText || el.textContent)
+                                    .match(/[\d,]+(?:\.\d{2})?/)?.[0]?.replace(/,/g, '') || '0'),
+                                element: {
+                                    tagName: el.tagName,
+                                    className: el.className,
+                                    id: el.id
+                                }
+                            }))
+                            .sort((a, b) => b.numericValue - a.numericValue)
+                    });
                 }
 
                 // Enhanced price finding logic
