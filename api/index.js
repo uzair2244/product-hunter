@@ -31,13 +31,16 @@ module.exports = async (req, res) => {
     let page = null;
 
     try {
-        // Set timeout for the entire operation
+        // Reduce timeout to 5 seconds
         const timeout = setTimeout(() => {
             throw new Error('Operation timed out');
-        }, 10000); // 50 second timeout
+        }, 5000);
 
         browser = await getBrowser();
         page = await browser.newPage();
+
+        // Additional optimization: Disable JavaScript and CSS
+        await page.setJavaScriptEnabled(false);
 
         // Optimize page settings
         await page.setRequestInterception(true);
@@ -54,21 +57,35 @@ module.exports = async (req, res) => {
         // Set user agent
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
 
-        // Navigate to the provided link
+        // Navigate with reduced timeout
         await page.goto(link, {
             waitUntil: "domcontentloaded",
-            timeout: 9000
+            timeout: 4000
         });
 
-        // Scrape product title, price, and image
+        // Updated selector and added multiple fallback selectors
         const productData = await page.evaluate(() => {
-            const titleElement = document.querySelector('div.title--wrap--UUHae_g h1[data-pl="product-title"]'); // Selector for title
+            const selectors = [
+                'div.title--wrap--UUHae_g h1[data-pl="product-title"]',
+                'h1.product-title',
+                'h1[data-pl="product-title"]',
+                '.product-title',
+                'h1'
+            ];
 
+            let titleElement = null;
+            for (const selector of selectors) {
+                titleElement = document.querySelector(selector);
+                if (titleElement) break;
+            }
 
             return {
-                title: titleElement ? titleElement.innerText : null,
+                title: titleElement ? titleElement.innerText.trim() : null,
             };
         });
+
+        // Add debug logging
+        console.log('Scraped data:', productData);
 
         clearTimeout(timeout);
 
