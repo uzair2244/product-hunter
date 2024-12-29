@@ -130,13 +130,13 @@ module.exports = async (req, res) => {
 
                 // Enhanced price selectors specifically for Daraz
                 const priceSelectors = [
-                    // Daraz specific selectors (most specific first)
-                    'span.pdp-price_color_orange',                    // Target orange price specifically
-                    'span.pdp-price_type_normal.pdp-price_color_orange',  // Another way to target current price
-                    '.pdp-product-price > span.pdp-price_color_orange',   // Direct child selector
-                    // Backup selectors
-                    '.pdp-product-price > span.pdp-price:not(.pdp-price_type_deleted)',
-                    '.pdp-price:not(.pdp-price_type_deleted):not(.pdp-price_color_lightgray)'
+                    // Exact match for the current price element
+                    '.pdp-price.pdp-price_type_normal.pdp-price_color_orange.pdp-price_size_xl',
+                    'span.pdp-price_type_normal.pdp-price_color_orange.pdp-price_size_xl',
+                    '.notranslate.pdp-price.pdp-price_type_normal.pdp-price_color_orange.pdp-price_size_xl',
+                    // Fallbacks (but still specific enough)
+                    '.pdp-product-price > .pdp-price_color_orange.pdp-price_size_xl',
+                    '.pdp-product-price > span.pdp-price_color_orange:not(.pdp-price_type_deleted)'
                 ];
 
                 let title = null;
@@ -181,10 +181,10 @@ module.exports = async (req, res) => {
                 for (const selector of priceSelectors) {
                     const elements = document.querySelectorAll(selector);
                     for (const element of elements) {
-                        // Multiple checks to ensure we get the current price
-                        if (element.classList.contains('pdp-price_type_deleted') ||
-                            element.classList.contains('pdp-price_color_lightgray') ||
-                            element.closest('.origin-block')) {  // Skip prices inside origin-block
+                        // Skip if element is inside origin-block or has deleted/lightgray classes
+                        if (element.closest('.origin-block') ||
+                            element.classList.contains('pdp-price_type_deleted') ||
+                            element.classList.contains('pdp-price_color_lightgray')) {
                             continue;
                         }
 
@@ -197,10 +197,8 @@ module.exports = async (req, res) => {
                             const match = priceText.match(/Rs\.?\s*(\d+(?:,\d{3})*(?:\.\d{2})?)/i);
                             if (match) {
                                 const numericValue = match[1].replace(/,/g, '');
-                                if (parseInt(numericValue) > 0) {
-                                    price = 'Rs. ' + numericValue;
-                                    break;
-                                }
+                                price = 'Rs. ' + numericValue;
+                                break;
                             }
                         }
                     }
