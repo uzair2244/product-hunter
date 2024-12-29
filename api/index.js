@@ -131,10 +131,11 @@ module.exports = async (req, res) => {
                 // Enhanced price selectors specifically for Daraz
                 const priceSelectors = [
                     // Daraz specific selectors (most specific first)
-                    '.pdp-price_type_normal.pdp-price_color_orange.pdp-price_size_xl',  // Most specific
-                    '.pdp-product-price span:first-child',            // Direct child approach
-                    '.pdp-product-price .notranslate:first-child',   // Using notranslate class
-                    '.pdp-price_type_normal',                        // Broader fallback
+                    '.pdp-price_type_normal.pdp-price_color_orange.pdp-price_size_xl',  // Current price (orange)
+                    '.pdp-product-price > span.pdp-price:first-child',                   // First price span
+                    '.pdp-product-price > .notranslate:first-child',                     // First price using notranslate
+                    // Avoid selectors that might match the deleted price
+                    ':not(.pdp-price_type_deleted).pdp-price_type_normal',               // Exclude deleted price
                     // ... rest of the existing selectors ...
                 ];
 
@@ -176,17 +177,16 @@ module.exports = async (req, res) => {
                     if (image) break;
                 }
 
-                // Enhanced price finding logic with debugging
+                // Enhanced price finding logic
                 for (const selector of priceSelectors) {
                     const elements = document.querySelectorAll(selector);
                     for (const element of elements) {
-                        let priceText = element.innerText || element.textContent;
-                        console.log('Found price element:', {
-                            selector,
-                            text: priceText,
-                            html: element.innerHTML
-                        });
+                        // Skip if element has deleted price class
+                        if (element.classList.contains('pdp-price_type_deleted')) {
+                            continue;
+                        }
 
+                        let priceText = element.innerText || element.textContent;
                         if (priceText) {
                             // Clean up the text
                             priceText = priceText.trim();
@@ -195,22 +195,8 @@ module.exports = async (req, res) => {
                             const match = priceText.match(/Rs\.?\s*(\d+(?:,\d{3})*(?:\.\d{2})?)/i);
                             if (match) {
                                 const numericValue = match[1].replace(/,/g, '');
-                                // Verify the numeric value is reasonable (greater than 1)
-                                if (parseInt(numericValue) > 1) {
-                                    price = 'Rs. ' + numericValue;
-                                    break;
-                                }
-                            }
-
-                            // Alternative number extraction if Rs. pattern fails
-                            const numberMatch = priceText.match(/(\d+(?:,\d{3})*(?:\.\d{2})?)/);
-                            if (numberMatch) {
-                                const numericValue = numberMatch[1].replace(/,/g, '');
-                                // Verify the numeric value is reasonable (greater than 1)
-                                if (parseInt(numericValue) > 1) {
-                                    price = 'Rs. ' + numericValue;
-                                    break;
-                                }
+                                price = 'Rs. ' + numericValue;
+                                break;
                             }
                         }
                     }
@@ -268,7 +254,8 @@ module.exports = async (req, res) => {
                         priceElements: Array.from(document.querySelectorAll('.pdp-product-price'))
                             .map(el => ({
                                 text: el.innerText,
-                                html: el.innerHTML
+                                html: el.innerHTML,
+                                classes: el.className
                             }))
                     }
                 };
