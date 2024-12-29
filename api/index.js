@@ -73,45 +73,86 @@ module.exports = async (req, res) => {
 
             // Quick extract with minimal selectors
             const productData = await page.evaluate(() => {
-                // Try mobile-specific selectors first
+                // Title selectors remain the same
                 const mobileSelectors = [
-                    '.title--wrap--UUHae_g .title--title--G6mZm_W', // New mobile selector
-                    '.product-name', // Mobile selector
-                    '.product-title-text', // Mobile selector
+                    '.title--wrap--UUHae_g .title--title--G6mZm_W',
+                    '.product-name',
+                    '.product-title-text',
                     '[data-pl="product-title"]',
                     'h1'
                 ];
 
+                // Image selectors
+                const imageSelectors = [
+                    '.image-view--image--Uu0Ba2D', // New mobile selector
+                    '.poster-image',
+                    '.detail-gallery-image',
+                    '[data-pl="product-image"]'
+                ];
+
+                // Price selectors
+                const priceSelectors = [
+                    '.price--originalText--Zsc6sMk', // New mobile selector
+                    '.product-price-value',
+                    '[data-pl="product-price"]',
+                    '.uniform-banner-box-price'
+                ];
+
+                let title = null;
+                let image = null;
+                let price = null;
+
+                // Find title
                 for (const selector of mobileSelectors) {
                     const element = document.querySelector(selector);
                     if (element) {
                         const text = element.innerText.trim();
                         if (text && text.length > 5 && !text.includes('Aliexpress')) {
-                            return {
-                                title: text,
-                                selector: selector
-                            };
+                            title = text;
+                            break;
                         }
                     }
                 }
 
-                // Fallback: Get any text that looks like a title
-                const elements = document.querySelectorAll('*');
-                for (const el of elements) {
-                    const text = el.innerText?.trim();
-                    if (text &&
-                        text.length > 20 &&
-                        text.length < 200 &&
-                        !text.includes('Aliexpress') &&
-                        !text.includes('verify')) {
-                        return {
-                            title: text,
-                            method: 'fallback'
-                        };
+                // Find image
+                for (const selector of imageSelectors) {
+                    const element = document.querySelector(selector);
+                    if (element) {
+                        image = element.src || element.getAttribute('data-src');
+                        if (image) break;
                     }
                 }
 
-                return { title: null };
+                // Find price
+                for (const selector of priceSelectors) {
+                    const element = document.querySelector(selector);
+                    if (element) {
+                        price = element.innerText.trim();
+                        if (price) break;
+                    }
+                }
+
+                // Fallback for title (existing fallback logic)
+                if (!title) {
+                    const elements = document.querySelectorAll('*');
+                    for (const el of elements) {
+                        const text = el.innerText?.trim();
+                        if (text &&
+                            text.length > 20 &&
+                            text.length < 200 &&
+                            !text.includes('Aliexpress') &&
+                            !text.includes('verify')) {
+                            title = text;
+                            break;
+                        }
+                    }
+                }
+
+                return {
+                    title,
+                    image,
+                    price,
+                };
             });
 
             console.log('URL:', await page.url());
