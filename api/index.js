@@ -185,6 +185,33 @@ module.exports = async (req, res) => {
                     if (image) break;
                 }
 
+                // Add this before the price selectors loop
+                if (window.location.href.includes('daraz')) {
+                    // Aggressive price search
+                    const allElements = document.querySelectorAll('*');
+                    for (const element of allElements) {
+                        const text = element.innerText || element.textContent;
+                        if (text) {
+                            // Look for currency symbols or common price patterns
+                            if (text.match(/(?:Rs\.?|₨|TK|BDT)?\s*[\d,]+(\.\d{2})?/i)) {
+                                const cleanText = text.trim();
+                                const priceMatch = cleanText.match(/(?:Rs\.?|₨|TK|BDT)?\s*([\d,]+(?:\.\d{2})?)/i);
+                                if (priceMatch && priceMatch[1]) {
+                                    price = 'Rs. ' + priceMatch[1].replace(/,/g, '');
+                                    console.log('Found price through aggressive search:', price);
+                                    console.log('Found in element:', {
+                                        tagName: element.tagName,
+                                        className: element.className,
+                                        id: element.id,
+                                        text: cleanText
+                                    });
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Enhanced price finding logic
                 for (const selector of priceSelectors) {
                     try {
@@ -326,6 +353,22 @@ module.exports = async (req, res) => {
                         class: el.className,
                         text: el.textContent
                     }))
+                });
+
+                // Add this debug logging
+                console.log('DOM Structure Debug:', {
+                    bodyText: document.body.innerText,
+                    priceRelatedElements: Array.from(document.querySelectorAll('*'))
+                        .filter(el => {
+                            const text = el.innerText || el.textContent;
+                            return text && text.match(/(?:Rs\.?|₨|TK|BDT)?\s*[\d,]+(\.\d{2})?/i);
+                        })
+                        .map(el => ({
+                            tagName: el.tagName,
+                            className: el.className,
+                            id: el.id,
+                            text: el.innerText || el.textContent
+                        }))
                 });
 
                 return {
