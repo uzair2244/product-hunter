@@ -39,82 +39,81 @@ module.exports = async (req, res) => {
         browser = await getBrowser();
         page = await browser.newPage();
 
-        // Maximum performance optimization
-        await Promise.all([
-            page.setJavaScriptEnabled(true), // Enable JS for dynamic content
-            page.setRequestInterception(true),
-            page.setDefaultNavigationTimeout(8000)
-        ]);
+        // Set mobile user agent
+        await page.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1');
 
-        // Intercept and abort non-essential requests
+        // Set mobile viewport
+        await page.setViewport({
+            width: 375,
+            height: 812,
+            isMobile: true,
+            hasTouch: true
+        });
+
+        // Block unnecessary resources
+        await page.setRequestInterception(true);
         page.on('request', (req) => {
             const resourceType = req.resourceType();
-            if (resourceType === 'document' || resourceType === 'xhr') {
+            if (resourceType === 'document') {
                 req.continue();
             } else {
                 req.abort();
             }
         });
 
-        // Set minimal headers
-        await page.setExtraHTTPHeaders({
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache'
-        });
+        // Convert URL to mobile version
+        const mobileLink = link.replace('www.aliexpress.com', 'm.aliexpress.com');
 
         try {
-            // Navigate with race condition
-            await Promise.race([
-                page.goto(link, { waitUntil: 'domcontentloaded' }),
-                new Promise(resolve => setTimeout(resolve, 4000))
-            ]);
-
-            // Extract content immediately with multiple methods
-            const productData = await page.evaluate(() => {
-                // Method 1: Direct selectors
-                const directSelectors = [
-                    '.title--wrap--UUHae_g .title--title--G6mZm_W',
-                    '.product-title-text',
-                    'h1.product-title',
-                    '[data-pl="product-title"]'
-                ];
-
-                for (const selector of directSelectors) {
-                    const element = document.querySelector(selector);
-                    if (element?.innerText?.trim()) {
-                        return { title: element.innerText.trim(), method: 'direct' };
-                    }
-                }
-
-                // Method 2: Find first visible h1
-                const h1s = Array.from(document.getElementsByTagName('h1'));
-                for (const h1 of h1s) {
-                    const text = h1.innerText?.trim();
-                    if (text && text !== 'Aliexpress') {
-                        return { title: text, method: 'h1' };
-                    }
-                }
-
-                // Method 3: Find largest text block
-                const textElements = document.querySelectorAll('div, h1, h2, h3, span');
-                let longestText = '';
-                textElements.forEach(el => {
-                    const text = el.innerText?.trim();
-                    if (text && text.length > longestText.length && text.length < 200) {
-                        longestText = text;
-                    }
-                });
-
-                if (longestText && longestText !== 'Aliexpress') {
-                    return { title: longestText, method: 'longest' };
-                }
-
-                return { title: null, method: 'none' };
+            // Navigate with minimal wait
+            await page.goto(mobileLink, {
+                waitUntil: 'domcontentloaded',
+                timeout: 5000
             });
 
-            // Debug info
+            // Quick extract with minimal selectors
+            const productData = await page.evaluate(() => {
+                // Try mobile-specific selectors first
+                const mobileSelectors = [
+                    '.title--wrap--UUHae_g .title--title--G6mZm_W', // New mobile selector
+                    '.product-name', // Mobile selector
+                    '.product-title-text', // Mobile selector
+                    '[data-pl="product-title"]',
+                    'h1'
+                ];
+
+                for (const selector of mobileSelectors) {
+                    const element = document.querySelector(selector);
+                    if (element) {
+                        const text = element.innerText.trim();
+                        if (text && text.length > 5 && !text.includes('Aliexpress')) {
+                            return {
+                                title: text,
+                                selector: selector
+                            };
+                        }
+                    }
+                }
+
+                // Fallback: Get any text that looks like a title
+                const elements = document.querySelectorAll('*');
+                for (const el of elements) {
+                    const text = el.innerText?.trim();
+                    if (text &&
+                        text.length > 20 &&
+                        text.length < 200 &&
+                        !text.includes('Aliexpress') &&
+                        !text.includes('verify')) {
+                        return {
+                            title: text,
+                            method: 'fallback'
+                        };
+                    }
+                }
+
+                return { title: null };
+            });
+
             console.log('URL:', await page.url());
             console.log('Data:', productData);
 
