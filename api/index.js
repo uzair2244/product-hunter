@@ -187,23 +187,26 @@ module.exports = async (req, res) => {
 
                 // Add this before the price selectors loop
                 if (window.location.href.includes('daraz')) {
-                    // Aggressive price search
+                    // Aggressive price search with better validation
                     const allElements = document.querySelectorAll('*');
                     for (const element of allElements) {
                         const text = element.innerText || element.textContent;
                         if (text) {
-                            // Look for currency symbols or common price patterns
-                            if (text.match(/(?:Rs\.?|₨|TK|BDT)?\s*[\d,]+(\.\d{2})?/i)) {
-                                const cleanText = text.trim();
-                                const priceMatch = cleanText.match(/(?:Rs\.?|₨|TK|BDT)?\s*([\d,]+(?:\.\d{2})?)/i);
-                                if (priceMatch && priceMatch[1]) {
-                                    price = 'Rs. ' + priceMatch[1].replace(/,/g, '');
+                            // Look for currency symbols followed by numbers with better validation
+                            // Minimum price threshold of 100 to avoid picking up small numbers
+                            const priceRegex = /(?:Rs\.?|₨|TK|BDT)?\s*([\d,]+(?:\.\d{2})?)/i;
+                            const match = text.match(priceRegex);
+                            if (match) {
+                                const numericValue = parseFloat(match[1].replace(/,/g, ''));
+                                // Validate the price is reasonable (greater than 100)
+                                if (numericValue >= 100) {
+                                    price = 'Rs. ' + numericValue;
                                     console.log('Found price through aggressive search:', price);
                                     console.log('Found in element:', {
                                         tagName: element.tagName,
                                         className: element.className,
                                         id: element.id,
-                                        text: cleanText
+                                        text: text.trim()
                                     });
                                     break;
                                 }
@@ -325,9 +328,11 @@ module.exports = async (req, res) => {
 
                 // Clean up price if needed
                 if (price) {
-                    // Ensure price starts with a currency symbol if it doesn't have one
-                    if (!price.match(/[\$\£\€]/)) {
-                        price = '$' + price;
+                    // Remove any $ symbol if it exists (we only want Rs.)
+                    price = price.replace('$', '');
+                    // Ensure price format is correct
+                    if (!price.startsWith('Rs.')) {
+                        price = 'Rs. ' + price;
                     }
                     // Remove any extra text after the price
                     price = price.split('\n')[0].trim();
