@@ -128,13 +128,14 @@ module.exports = async (req, res) => {
                     '.gallery-image'
                 ];
 
-                // Enhanced price selectors with specific Daraz class
+                // Enhanced price selectors specifically for Daraz
                 const priceSelectors = [
                     // Daraz specific selectors (most specific first)
-                    '.pdp-price_type_normal.pdp-price_color_orange',  // This targets the main price
-                    '.pdp-product-price .pdp-price:first-child',      // Alternative way to get main price
-                    '.pdp-price.pdp-price_type_normal',              // Another variation
-                    // ... rest of the existing selectors remain the same ...
+                    '.pdp-price_type_normal.pdp-price_color_orange.pdp-price_size_xl',  // Most specific
+                    '.pdp-product-price span:first-child',            // Direct child approach
+                    '.pdp-product-price .notranslate:first-child',   // Using notranslate class
+                    '.pdp-price_type_normal',                        // Broader fallback
+                    // ... rest of the existing selectors ...
                 ];
 
                 let title = null;
@@ -175,26 +176,39 @@ module.exports = async (req, res) => {
                     if (image) break;
                 }
 
-                // Enhanced price finding logic for Daraz
+                // Enhanced price finding logic with debugging
                 for (const selector of priceSelectors) {
                     const elements = document.querySelectorAll(selector);
                     for (const element of elements) {
                         let priceText = element.innerText || element.textContent;
+                        console.log('Found price element:', {
+                            selector,
+                            text: priceText,
+                            html: element.innerHTML
+                        });
+
                         if (priceText) {
                             // Clean up the text
                             priceText = priceText.trim();
 
-                            // Extract number after "Rs." if present
-                            const match = priceText.match(/Rs\.\s*(\d+(?:,\d{3})*(?:\.\d{2})?)/i);
+                            // Look for price with Rs. format
+                            const match = priceText.match(/Rs\.?\s*(\d+(?:,\d{3})*(?:\.\d{2})?)/i);
                             if (match) {
-                                // Remove commas and format
-                                price = 'Rs. ' + match[1].replace(/,/g, '');
-                                break;
-                            } else {
-                                // If no "Rs." found, just get the number
-                                const numberMatch = priceText.match(/(\d+(?:,\d{3})*(?:\.\d{2})?)/);
-                                if (numberMatch) {
-                                    price = 'Rs. ' + numberMatch[1].replace(/,/g, '');
+                                const numericValue = match[1].replace(/,/g, '');
+                                // Verify the numeric value is reasonable (greater than 1)
+                                if (parseInt(numericValue) > 1) {
+                                    price = 'Rs. ' + numericValue;
+                                    break;
+                                }
+                            }
+
+                            // Alternative number extraction if Rs. pattern fails
+                            const numberMatch = priceText.match(/(\d+(?:,\d{3})*(?:\.\d{2})?)/);
+                            if (numberMatch) {
+                                const numericValue = numberMatch[1].replace(/,/g, '');
+                                // Verify the numeric value is reasonable (greater than 1)
+                                if (parseInt(numericValue) > 1) {
+                                    price = 'Rs. ' + numericValue;
                                     break;
                                 }
                             }
@@ -203,41 +217,22 @@ module.exports = async (req, res) => {
                     if (price) break;
                 }
 
-                // Super fallback for price with better currency detection
+                // Super fallback for price with validation
                 if (!price) {
-                    // Look for price with currency symbols
-                    const priceRegex = /(?:Rs\.?|PKR|₨)\s*\d+(?:,\d{3})*(?:\.\d{2})?|\$\s*\d+(?:,\d{3})*(?:\.\d{2})?/i;
+                    const priceRegex = /Rs\.?\s*(\d+(?:,\d{3})*(?:\.\d{2})?)/i;
                     const allElements = document.querySelectorAll('*');
                     for (const element of allElements) {
                         const text = element.innerText || element.textContent;
                         if (text) {
                             const match = text.match(priceRegex);
                             if (match) {
-                                let matchedPrice = match[0].trim();
-                                // Clean up the matched price
-                                if (matchedPrice.match(/(?:Rs\.?|PKR|₨)/i)) {
-                                    // Convert to standard Rs. format
-                                    matchedPrice = matchedPrice.replace(/(?:Rs\.?|PKR|₨)/i, '').trim();
-                                    matchedPrice = 'Rs. ' + matchedPrice.replace(/,/g, '');
+                                const numericValue = match[1].replace(/,/g, '');
+                                // Verify the numeric value is reasonable (greater than 1)
+                                if (parseInt(numericValue) > 1) {
+                                    price = 'Rs. ' + numericValue;
+                                    break;
                                 }
-                                price = matchedPrice;
-                                break;
                             }
-                        }
-                    }
-                }
-
-                // Final price cleanup
-                if (price) {
-                    // Remove any extra whitespace or newlines
-                    price = price.replace(/\s+/g, ' ').trim();
-
-                    // Ensure proper currency format
-                    if (window.location.href.includes('daraz')) {
-                        // Convert any mistakenly added $ to Rs.
-                        price = price.replace('$', '');
-                        if (!price.includes('Rs.')) {
-                            price = 'Rs. ' + price;
                         }
                     }
                 }
@@ -269,7 +264,12 @@ module.exports = async (req, res) => {
                             title: mobileSelectors.find(s => document.querySelector(s)),
                             image: imageSelectors.find(s => document.querySelector(s)),
                             price: priceSelectors.find(s => document.querySelector(s))
-                        }
+                        },
+                        priceElements: Array.from(document.querySelectorAll('.pdp-product-price'))
+                            .map(el => ({
+                                text: el.innerText,
+                                html: el.innerHTML
+                            }))
                     }
                 };
             });
