@@ -82,20 +82,27 @@ module.exports = async (req, res) => {
                     'h1'
                 ];
 
-                // Image selectors
+                // Updated image selectors
                 const imageSelectors = [
-                    '.image-view--image--Uu0Ba2D', // New mobile selector
+                    '.image-view--image--Uu0Ba2D',
+                    '.gallery-image--image--P2S3P_r',  // New mobile selector
+                    '.pdp-image',                      // New mobile selector
+                    'img[data-role="pdp-image"]',     // New mobile selector
                     '.poster-image',
                     '.detail-gallery-image',
-                    '[data-pl="product-image"]'
+                    '[data-pl="product-image"]',
+                    '.img[data-role="thumb"]'         // Backup selector
                 ];
 
-                // Price selectors
+                // Updated price selectors
                 const priceSelectors = [
-                    '.price--originalText--Zsc6sMk', // New mobile selector
-                    '.product-price-value',
+                    '.price--originalText--Zsc6sMk',
+                    '.product-price-current',          // New mobile selector
+                    '.uniform-banner-box-price',
                     '[data-pl="product-price"]',
-                    '.uniform-banner-box-price'
+                    '.product-price',                  // New mobile selector
+                    '.current-price',                  // New mobile selector
+                    '.price-current'                   // New mobile selector
                 ];
 
                 let title = null;
@@ -114,21 +121,47 @@ module.exports = async (req, res) => {
                     }
                 }
 
-                // Find image
+                // Enhanced image finding logic
                 for (const selector of imageSelectors) {
                     const element = document.querySelector(selector);
                     if (element) {
-                        image = element.src || element.getAttribute('data-src');
+                        // Try multiple ways to get the image URL
+                        image = element.src ||
+                            element.getAttribute('data-src') ||
+                            element.getAttribute('data-lazy-src') ||
+                            element.getAttribute('content');
+
+                        // Log for debugging
+                        console.log('Found image selector:', selector);
+                        console.log('Image URL:', image);
+
                         if (image) break;
                     }
                 }
 
-                // Find price
+                // Enhanced price finding logic
                 for (const selector of priceSelectors) {
                     const element = document.querySelector(selector);
                     if (element) {
                         price = element.innerText.trim();
+
+                        // Log for debugging
+                        console.log('Found price selector:', selector);
+                        console.log('Price text:', price);
+
                         if (price) break;
+                    }
+                }
+
+                // Fallback for image if still not found
+                if (!image) {
+                    const allImages = document.querySelectorAll('img');
+                    for (const img of allImages) {
+                        const src = img.src || img.getAttribute('data-src');
+                        if (src && src.includes('product') && !src.includes('icon')) {
+                            image = src;
+                            break;
+                        }
                     }
                 }
 
@@ -152,11 +185,18 @@ module.exports = async (req, res) => {
                     title,
                     image,
                     price,
+                    debug: {
+                        foundSelectors: {
+                            image: imageSelectors.find(s => document.querySelector(s)),
+                            price: priceSelectors.find(s => document.querySelector(s))
+                        }
+                    }
                 };
             });
 
             console.log('URL:', await page.url());
             console.log('Data:', productData);
+            console.log('Debug info:', productData.debug);
 
             if (!productData.title) {
                 throw new Error('No title found');
