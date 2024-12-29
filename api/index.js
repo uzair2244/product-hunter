@@ -131,26 +131,14 @@ module.exports = async (req, res) => {
                 // Generic price selectors
                 const priceSelectors = [
                     // Exact Daraz selectors based on the HTML structure
-                    '.pdp-product-price span.pdp-price_type_normal',
-                    '.pdp-product-price > span.pdp-price:first-child',
-                    'span.pdp-price.pdp-price_type_normal.pdp-price_color_orange',
-                    // Then keep the existing selectors
-                    '.pdp-price_type_normal',
-                    '.pdp-product-price .pdp-price:first-child',
-                    '.pdp-price:not(.pdp-price_type_deleted)',
-                    // Daraz enhanced selectors
-                    '.pdp-price',
-                    '.pdp-product-price',
-                    '.pdp-price_type_normal',
-                    '[data-spm="price"]',
-                    '.pdp-mod-product-price-view',
-                    '.pdp-price-box',
-                    // Temu specific selectors
+                    'span.notranslate.pdp-price.pdp-price_type_normal.pdp-price_color_orange.pdp-price_size_xl',
+                    '.pdp-product-price > span.notranslate.pdp-price:not(.pdp-price_type_deleted)',
+                    '.pdp-product-price span.pdp-price_type_normal.pdp-price_color_orange',
+                    // Keep existing non-Daraz selectors
                     '.PriceComponent_wrapper__2Kc_j',
                     '.ProductPrice_price__3TmZi',
                     '[data-testid="product-price"]',
                     '.price-current-value',
-                    // Previous selectors remain...
                     '.price--originalText--Zsc6sMk',
                     '.product-price-current',
                     '.uniform-banner-box-price',
