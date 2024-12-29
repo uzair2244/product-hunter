@@ -39,61 +39,101 @@ module.exports = async (req, res) => {
         browser = await getBrowser();
         page = await browser.newPage();
 
-        // Optimize performance
-        await page.setRequestInterception(true);
-        page.on('request', (request) => {
-            // Only allow HTML documents, block everything else
-            if (request.resourceType() === 'document') {
-                request.continue();
+        // Maximum performance optimization
+        await Promise.all([
+            page.setJavaScriptEnabled(true), // Enable JS for dynamic content
+            page.setRequestInterception(true),
+            page.setDefaultNavigationTimeout(8000)
+        ]);
+
+        // Intercept and abort non-essential requests
+        page.on('request', (req) => {
+            const resourceType = req.resourceType();
+            if (resourceType === 'document' || resourceType === 'xhr') {
+                req.continue();
             } else {
-                request.abort();
+                req.abort();
             }
         });
 
-        // Minimal required headers
+        // Set minimal headers
         await page.setExtraHTTPHeaders({
-            'Accept': 'text/html',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9',
             'Accept-Language': 'en-US,en;q=0.9',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
         });
 
-        // Fast navigation with minimal wait
-        await page.goto(link, {
-            waitUntil: 'domcontentloaded', // Don't wait for full load
-            timeout: 5000 // 5 second timeout
-        });
+        try {
+            // Navigate with race condition
+            await Promise.race([
+                page.goto(link, { waitUntil: 'domcontentloaded' }),
+                new Promise(resolve => setTimeout(resolve, 4000))
+            ]);
 
-        // Quick content extraction
-        const productData = await page.evaluate(() => {
-            const selectors = [
-                '.product-title-text',
-                'h1.product-title',
-                '.title--wrap--UUHae_g h1',
-                '[data-pl="product-title"]',
-                'h1'
-            ];
+            // Extract content immediately with multiple methods
+            const productData = await page.evaluate(() => {
+                // Method 1: Direct selectors
+                const directSelectors = [
+                    '.title--wrap--UUHae_g .title--title--G6mZm_W',
+                    '.product-title-text',
+                    'h1.product-title',
+                    '[data-pl="product-title"]'
+                ];
 
-            for (const selector of selectors) {
-                const element = document.querySelector(selector);
-                if (element) {
-                    const title = element.innerText.trim();
-                    if (title && title !== 'Aliexpress') {
-                        return { title };
+                for (const selector of directSelectors) {
+                    const element = document.querySelector(selector);
+                    if (element?.innerText?.trim()) {
+                        return { title: element.innerText.trim(), method: 'direct' };
                     }
                 }
+
+                // Method 2: Find first visible h1
+                const h1s = Array.from(document.getElementsByTagName('h1'));
+                for (const h1 of h1s) {
+                    const text = h1.innerText?.trim();
+                    if (text && text !== 'Aliexpress') {
+                        return { title: text, method: 'h1' };
+                    }
+                }
+
+                // Method 3: Find largest text block
+                const textElements = document.querySelectorAll('div, h1, h2, h3, span');
+                let longestText = '';
+                textElements.forEach(el => {
+                    const text = el.innerText?.trim();
+                    if (text && text.length > longestText.length && text.length < 200) {
+                        longestText = text;
+                    }
+                });
+
+                if (longestText && longestText !== 'Aliexpress') {
+                    return { title: longestText, method: 'longest' };
+                }
+
+                return { title: null, method: 'none' };
+            });
+
+            // Debug info
+            console.log('URL:', await page.url());
+            console.log('Data:', productData);
+
+            if (!productData.title) {
+                throw new Error('No title found');
             }
 
-            // Quick fallback
-            const h1 = document.querySelector('h1');
-            return {
-                title: h1 ? h1.innerText.trim() : 'Title not found'
-            };
-        });
+            return res.status(200).json(productData);
 
-        // Close page immediately
-        await page.close();
-
-        return res.status(200).json(productData);
+        } catch (error) {
+            console.error('Extraction error:', error);
+            return res.status(500).json({
+                message: "Error fetching product data",
+                error: error.message,
+                url: await page.url()
+            });
+        } finally {
+            if (page) await page.close();
+        }
 
     } catch (error) {
         console.error("Error details:", {
