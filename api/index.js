@@ -192,35 +192,49 @@ module.exports = async (req, res) => {
 
                 // Enhanced price finding logic
                 for (const selector of priceSelectors) {
-                    const elements = document.querySelectorAll(selector);
-                    console.log(`Trying selector: ${selector}, found elements: ${elements.length}`);
-                    for (const element of elements) {
-                        // Special handling for Daraz
+                    try {
+                        // Direct Daraz price extraction
                         if (window.location.href.includes('daraz')) {
-                            // Try to find the price by specific Daraz structure
-                            const priceElement = document.querySelector('.pdp-price_color_orange');
-                            if (priceElement) {
-                                price = priceElement.innerText || priceElement.textContent;
-                                console.log('Found Daraz price:', price);
-                                break;
-                            }
-
-                            // Fallback: try to find any visible price that's not marked as deleted
-                            const allPrices = document.querySelectorAll('.pdp-price');
-                            for (const p of allPrices) {
-                                if (!p.classList.contains('pdp-price_type_deleted') &&
-                                    (p.classList.contains('pdp-price_color_orange') || p.classList.contains('pdp-price_type_normal'))) {
-                                    price = p.innerText || p.textContent;
-                                    console.log('Found Daraz fallback price:', price);
+                            // Try to get price from the exact structure
+                            const priceContainer = document.querySelector('#module_product_price_1 .pdp-product-price');
+                            if (priceContainer) {
+                                const orangePrice = priceContainer.querySelector('.pdp-price_color_orange');
+                                if (orangePrice) {
+                                    price = orangePrice.textContent.trim();
+                                    console.log('Found exact Daraz price:', price);
                                     break;
                                 }
                             }
+
+                            // Super specific fallback
+                            const allOrangePrices = document.querySelectorAll('.pdp-price_color_orange');
+                            for (const p of allOrangePrices) {
+                                if (p.textContent && !p.closest('.origin-block')) {
+                                    price = p.textContent.trim();
+                                    console.log('Found Daraz orange price:', price);
+                                    break;
+                                }
+                            }
+
+                            // Last resort: any price that's not in origin-block
+                            if (!price) {
+                                const allPrices = document.querySelectorAll('.pdp-price');
+                                for (const p of allPrices) {
+                                    if (!p.closest('.origin-block') &&
+                                        !p.classList.contains('pdp-price_type_deleted')) {
+                                        price = p.textContent.trim();
+                                        console.log('Found Daraz fallback price:', price);
+                                        break;
+                                    }
+                                }
+                            }
+
                             if (price) break;
                         }
 
                         // Original price finding logic for other sites
-                        let priceText = element.innerText || element.textContent;
-                        if (priceText) {
+                        const elements = document.querySelectorAll(selector);
+                        for (const element of elements) {
                             // Ignore if it's a deleted/original price
                             if (element.classList.contains('pdp-price_type_deleted')) {
                                 console.log('Skipping deleted price');
@@ -228,6 +242,7 @@ module.exports = async (req, res) => {
                             }
 
                             // Handle different currency formats
+                            let priceText = element.innerText || element.textContent;
                             priceText = priceText.replace(/Rs\.|PKR|₨/i, '').trim();
                             console.log(`Cleaned price text: ${priceText}`);
 
@@ -242,8 +257,10 @@ module.exports = async (req, res) => {
                                 break;
                             }
                         }
+                    } catch (err) {
+                        console.log('Error in price extraction:', err);
+                        continue;
                     }
-                    if (price) break;
                 }
 
                 // Super fallback for image
@@ -273,6 +290,10 @@ module.exports = async (req, res) => {
                     // Remove any extra text after the price
                     price = price.split('\n')[0].trim();
                 }
+
+                // Add debug logging
+                console.log('Final price result:', price);
+                console.log('DOM structure:', document.querySelector('#module_product_price_1')?.outerHTML);
 
                 return {
                     title,
