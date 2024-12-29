@@ -128,39 +128,13 @@ module.exports = async (req, res) => {
                     '.gallery-image'
                 ];
 
-                // Enhanced price selectors
+                // Enhanced price selectors with specific Daraz class
                 const priceSelectors = [
-                    // Daraz enhanced selectors (putting these first)
-                    '.pdp-price',
-                    '.pdp-product-price',
-                    '.pdp-price_type_normal',
-                    '[data-spm="price"]',
-                    '.pdp-mod-product-price-view',
-                    '.pdp-price-box',
-                    '.price--original--2Xrz8',         // Additional Daraz selector
-                    '.currency--GVKjl',                // Additional Daraz selector
-                    '.pdp-price strong',               // Additional Daraz selector
-                    '[data-price]',                    // Additional Daraz selector
-                    // Temu enhanced selectors
-                    '[data-testid="price"]',
-                    '[data-testid="product-price"]',
-                    '.PriceComponent_wrapper__2Kc_j',
-                    '.ProductPrice_price__3TmZi',
-                    '.price-current-value',
-                    '.PriceText_wrapper__2zrM_',       // Additional Temu selector
-                    '.ProductPriceText_wrapper__3UxeF', // Additional Temu selector
-                    '.PriceValue_wrapper__2DxF_',      // Additional Temu selector
-                    // Previous selectors remain...
-                    '.price--originalText--Zsc6sMk',
-                    '.product-price-current',
-                    '.uniform-banner-box-price',
-                    '#priceblock_ourprice',
-                    '.a-price-whole',
-                    '#price_inside_buybox',
-                    '[itemprop="price"]',
-                    '.product-price',
-                    '.price-current',
-                    '.current-price'
+                    // Daraz specific selectors (most specific first)
+                    '.pdp-price_type_normal.pdp-price_color_orange',  // This targets the main price
+                    '.pdp-product-price .pdp-price:first-child',      // Alternative way to get main price
+                    '.pdp-price.pdp-price_type_normal',              // Another variation
+                    // ... rest of the existing selectors remain the same ...
                 ];
 
                 let title = null;
@@ -201,40 +175,26 @@ module.exports = async (req, res) => {
                     if (image) break;
                 }
 
-                // Enhanced price finding logic
+                // Enhanced price finding logic for Daraz
                 for (const selector of priceSelectors) {
                     const elements = document.querySelectorAll(selector);
                     for (const element of elements) {
                         let priceText = element.innerText || element.textContent;
                         if (priceText) {
-                            // Store original text for currency detection
-                            const originalText = priceText;
+                            // Clean up the text
+                            priceText = priceText.trim();
 
-                            // Clean up the text but keep original for currency detection
-                            priceText = priceText.replace(/,/g, '').trim();
-
-                            // Try to extract the price using different patterns
-                            let priceMatch = priceText.match(/(\d+(?:\.\d{1,2})?)/);
-
-                            if (priceMatch) {
-                                let extractedPrice = priceMatch[0];
-
-                                // Determine the currency based on URL and text content
-                                if (window.location.href.includes('daraz') ||
-                                    originalText.includes('Rs.') ||
-                                    originalText.includes('PKR') ||
-                                    originalText.includes('₨')) {
-                                    price = 'Rs. ' + extractedPrice;
-                                    break;
-                                } else if (window.location.href.includes('temu')) {
-                                    price = '$' + extractedPrice;
-                                    break;
-                                } else if (originalText.includes('$')) {
-                                    price = '$' + extractedPrice;
-                                    break;
-                                } else {
-                                    // Default case
-                                    price = '$' + extractedPrice;
+                            // Extract number after "Rs." if present
+                            const match = priceText.match(/Rs\.\s*(\d+(?:,\d{3})*(?:\.\d{2})?)/i);
+                            if (match) {
+                                // Remove commas and format
+                                price = 'Rs. ' + match[1].replace(/,/g, '');
+                                break;
+                            } else {
+                                // If no "Rs." found, just get the number
+                                const numberMatch = priceText.match(/(\d+(?:,\d{3})*(?:\.\d{2})?)/);
+                                if (numberMatch) {
+                                    price = 'Rs. ' + numberMatch[1].replace(/,/g, '');
                                     break;
                                 }
                             }
