@@ -130,14 +130,21 @@ module.exports = async (req, res) => {
 
                 // Generic price selectors
                 const priceSelectors = [
-                    // Daraz-specific selectors (updated)
-                    '.pdp-price',                           // Base price class
-                    '.pdp-price_type_normal',              // Normal price type
-                    '.pdp-product-price span',             // General price span
-                    '.pdp-price_color_orange',             // Orange-colored price
-                    '.pdp-mod-product-price-view span',    // Price view span
-                    '[data-spm="price"]',                  // Price by data attribute
-                    // ... keep existing non-Daraz selectors ...
+                    // New Daraz selectors based on recent structure
+                    '.pdp-price_size_xl',                  // Large-sized price
+                    '.pdp-mod-product-price-normal',       // Normal price container
+                    '.pdp-mod-product-price-value',        // Price value
+                    '.pdp-price-number',                   // Price number
+                    '.origin-block-content',               // Price block
+                    '[data-tracking="product-price"]',     // Price tracking attribute
+                    '[data-spm-anchor-id*="price"]',       // Price anchor
+                    // Previous selectors
+                    '.pdp-price',
+                    '.pdp-price_type_normal',
+                    '.pdp-product-price span',
+                    '.pdp-price_color_orange',
+                    '.pdp-mod-product-price-view span',
+                    '[data-spm="price"]'
                 ];
 
                 let title = null;
@@ -183,6 +190,21 @@ module.exports = async (req, res) => {
                     try {
                         // Specific Daraz price extraction
                         if (window.location.href.includes('daraz')) {
+                            // Method 0: Try direct price module
+                            const priceModule = document.querySelector('#module_product_price_1');
+                            if (priceModule) {
+                                const priceText = priceModule.textContent;
+                                if (priceText) {
+                                    const cleanText = priceText.replace(/Rs\.|PKR|₨/gi, '').trim();
+                                    const priceMatch = cleanText.match(/[\d,]+(\.\d{1,2})?/);
+                                    if (priceMatch) {
+                                        price = 'Rs. ' + priceMatch[0].replace(/,/g, '');
+                                        console.log('Found Daraz price (module method):', price);
+                                        break;
+                                    }
+                                }
+                            }
+
                             // Method 1: Try structured approach
                             const priceElements = document.querySelectorAll(selector);
                             for (const element of priceElements) {
@@ -294,6 +316,16 @@ module.exports = async (req, res) => {
                     priceElements: document.querySelectorAll('.pdp-price').length,
                     priceContainer: !!document.querySelector('.pdp-product-price'),
                     finalPrice: price
+                });
+
+                // Add this debug logging right after price extraction
+                console.log('DOM Price Debug:', {
+                    priceModule: document.querySelector('#module_product_price_1')?.textContent,
+                    htmlStructure: document.querySelector('#module_product_price_1')?.innerHTML,
+                    allPriceElements: Array.from(document.querySelectorAll('[class*="price"]')).map(el => ({
+                        class: el.className,
+                        text: el.textContent
+                    }))
                 });
 
                 return {
