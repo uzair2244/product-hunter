@@ -73,36 +73,62 @@ module.exports = async (req, res) => {
 
             // Quick extract with minimal selectors
             const productData = await page.evaluate(() => {
-                // Title selectors remain the same
+                // Generic title selectors that work across multiple sites
                 const mobileSelectors = [
+                    // AliExpress/Alibaba
                     '.title--wrap--UUHae_g .title--title--G6mZm_W',
                     '.product-name',
                     '.product-title-text',
                     '[data-pl="product-title"]',
+                    // Amazon
+                    '#productTitle',
+                    '#title',
+                    // Daraz
+                    '.pdp-mod-product-badge-title',
+                    '.pdp-product-title',
+                    // Generic
+                    '[itemprop="name"]',
                     'h1'
                 ];
 
-                // Updated image selectors
+                // Generic image selectors
                 const imageSelectors = [
+                    // AliExpress/Alibaba
                     '.image-view--image--Uu0Ba2D',
-                    '.gallery-image--image--P2S3P_r',  // New mobile selector
-                    '.pdp-image',                      // New mobile selector
-                    'img[data-role="pdp-image"]',     // New mobile selector
-                    '.poster-image',
-                    '.detail-gallery-image',
-                    '[data-pl="product-image"]',
-                    '.img[data-role="thumb"]'         // Backup selector
+                    '.gallery-image--image--P2S3P_r',
+                    '.pdp-image',
+                    'img[data-role="pdp-image"]',
+                    // Amazon
+                    '#landingImage',
+                    '#imgBlkFront',
+                    '#main-image',
+                    // Daraz
+                    '.pdp-mod-common-image img',
+                    // Generic
+                    '[itemprop="image"]',
+                    '.product-image img',
+                    '.main-image img',
+                    '.gallery-image'
                 ];
 
-                // Updated price selectors
+                // Generic price selectors
                 const priceSelectors = [
+                    // AliExpress/Alibaba
                     '.price--originalText--Zsc6sMk',
-                    '.product-price-current',          // New mobile selector
+                    '.product-price-current',
                     '.uniform-banner-box-price',
-                    '[data-pl="product-price"]',
-                    '.product-price',                  // New mobile selector
-                    '.current-price',                  // New mobile selector
-                    '.price-current'                   // New mobile selector
+                    // Amazon
+                    '#priceblock_ourprice',
+                    '.a-price-whole',
+                    '#price_inside_buybox',
+                    // Daraz
+                    '.pdp-price',
+                    '.pdp-product-price',
+                    // Generic
+                    '[itemprop="price"]',
+                    '.product-price',
+                    '.price-current',
+                    '.current-price'
                 ];
 
                 let title = null;
@@ -129,56 +155,56 @@ module.exports = async (req, res) => {
                         image = element.src ||
                             element.getAttribute('data-src') ||
                             element.getAttribute('data-lazy-src') ||
-                            element.getAttribute('content');
+                            element.getAttribute('content') ||
+                            element.getAttribute('data-zoom-image');
 
-                        // Log for debugging
-                        console.log('Found image selector:', selector);
-                        console.log('Image URL:', image);
-
-                        if (image) break;
+                        if (image && !image.startsWith('data:')) {  // Avoid data URLs
+                            break;
+                        }
                     }
                 }
 
-                // Enhanced price finding logic
+                // Enhanced price finding logic with cleanup
                 for (const selector of priceSelectors) {
                     const element = document.querySelector(selector);
                     if (element) {
-                        price = element.innerText.trim();
+                        let priceText = element.innerText.trim();
 
-                        // Log for debugging
-                        console.log('Found price selector:', selector);
-                        console.log('Price text:', price);
-
-                        if (price) break;
+                        // Extract the first price if multiple prices exist
+                        const priceMatch = priceText.match(/[\$\£\€]?\s*\d+([.,]\d{1,2})?/);
+                        if (priceMatch) {
+                            price = priceMatch[0].trim();
+                            break;
+                        }
                     }
                 }
 
-                // Fallback for image if still not found
+                // Super fallback for image
                 if (!image) {
                     const allImages = document.querySelectorAll('img');
                     for (const img of allImages) {
                         const src = img.src || img.getAttribute('data-src');
-                        if (src && src.includes('product') && !src.includes('icon')) {
+                        if (src &&
+                            !src.startsWith('data:') &&
+                            (src.includes('product') ||
+                                src.includes('image') ||
+                                src.match(/\.(jpg|jpeg|png|webp)/i)) &&
+                            !src.includes('icon') &&
+                            !src.includes('logo')) {
                             image = src;
                             break;
                         }
                     }
                 }
 
-                // Fallback for title (existing fallback logic)
-                if (!title) {
-                    const elements = document.querySelectorAll('*');
-                    for (const el of elements) {
-                        const text = el.innerText?.trim();
-                        if (text &&
-                            text.length > 20 &&
-                            text.length < 200 &&
-                            !text.includes('Aliexpress') &&
-                            !text.includes('verify')) {
-                            title = text;
-                            break;
-                        }
+                // Clean up price if needed
+                if (price) {
+                    // Ensure price starts with a currency symbol if it doesn't have one
+                    if (!price.match(/[\$\£\€]/)) {
+                        price = '$' + price;
                     }
+                    // Remove any extra text after the price
+                    price = price.split('\n')[0].trim();
                 }
 
                 return {
