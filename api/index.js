@@ -130,13 +130,17 @@ module.exports = async (req, res) => {
 
                 // Generic price selectors
                 const priceSelectors = [
+                    // Daraz specific selectors - updated for current price
+                    '.pdp-price_type_normal',  // This will specifically target the current price span
+                    '.pdp-product-price .pdp-price:first-child',
+                    '.pdp-price:not(.pdp-price_type_deleted)',
                     // Daraz enhanced selectors
                     '.pdp-price',
                     '.pdp-product-price',
                     '.pdp-price_type_normal',
                     '[data-spm="price"]',
-                    '.pdp-mod-product-price-view',      // Additional Daraz selector
-                    '.pdp-price-box',                   // Additional Daraz selector
+                    '.pdp-mod-product-price-view',
+                    '.pdp-price-box',
                     // Temu specific selectors
                     '.PriceComponent_wrapper__2Kc_j',
                     '.ProductPrice_price__3TmZi',
@@ -199,6 +203,11 @@ module.exports = async (req, res) => {
                     for (const element of elements) {
                         let priceText = element.innerText || element.textContent;
                         if (priceText) {
+                            // Ignore if it's a deleted/original price
+                            if (element.classList.contains('pdp-price_type_deleted')) {
+                                continue;
+                            }
+
                             // Handle different currency formats
                             priceText = priceText.replace(/Rs\.|PKR|₨/i, '').trim();
 
