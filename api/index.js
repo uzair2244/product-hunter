@@ -128,20 +128,28 @@ module.exports = async (req, res) => {
                     '.gallery-image'
                 ];
 
-                // Generic price selectors
+                // Enhanced price selectors
                 const priceSelectors = [
-                    // Daraz enhanced selectors
+                    // Daraz enhanced selectors (putting these first)
                     '.pdp-price',
                     '.pdp-product-price',
                     '.pdp-price_type_normal',
                     '[data-spm="price"]',
-                    '.pdp-mod-product-price-view',      // Additional Daraz selector
-                    '.pdp-price-box',                   // Additional Daraz selector
-                    // Temu specific selectors
+                    '.pdp-mod-product-price-view',
+                    '.pdp-price-box',
+                    '.price--original--2Xrz8',         // Additional Daraz selector
+                    '.currency--GVKjl',                // Additional Daraz selector
+                    '.pdp-price strong',               // Additional Daraz selector
+                    '[data-price]',                    // Additional Daraz selector
+                    // Temu enhanced selectors
+                    '[data-testid="price"]',
+                    '[data-testid="product-price"]',
                     '.PriceComponent_wrapper__2Kc_j',
                     '.ProductPrice_price__3TmZi',
-                    '[data-testid="product-price"]',
                     '.price-current-value',
+                    '.PriceText_wrapper__2zrM_',       // Additional Temu selector
+                    '.ProductPriceText_wrapper__3UxeF', // Additional Temu selector
+                    '.PriceValue_wrapper__2DxF_',      // Additional Temu selector
                     // Previous selectors remain...
                     '.price--originalText--Zsc6sMk',
                     '.product-price-current',
@@ -199,26 +207,47 @@ module.exports = async (req, res) => {
                     for (const element of elements) {
                         let priceText = element.innerText || element.textContent;
                         if (priceText) {
-                            // Handle different currency formats
-                            priceText = priceText.replace(/Rs\.|PKR|₨/i, '').trim();
+                            // Handle different currency formats and clean up the text
+                            priceText = priceText.replace(/Rs\.|PKR|₨|,/gi, '').trim();
 
-                            // Extract numbers and decimals
-                            const priceMatch = priceText.match(/[\d,]+(\.\d{1,2})?/);
+                            // Try to extract the price using different patterns
+                            let priceMatch = priceText.match(/(\d+(?:\.\d{1,2})?)/);
+
                             if (priceMatch) {
-                                price = priceMatch[0].replace(/,/g, '');
-                                // Add appropriate currency symbol
+                                let extractedPrice = priceMatch[0];
+
+                                // Add appropriate currency symbol based on the site
                                 if (window.location.href.includes('daraz')) {
-                                    price = 'Rs. ' + price;
+                                    price = 'Rs. ' + extractedPrice;
+                                    break;
                                 } else if (window.location.href.includes('temu')) {
-                                    price = '$' + price;
-                                } else if (!price.match(/[\$\£\€]/)) {
-                                    price = '$' + price;
+                                    price = '$' + extractedPrice;
+                                    break;
+                                } else {
+                                    // Default to $ if no specific currency is detected
+                                    price = priceText.includes('$') ? priceText : '$' + extractedPrice;
+                                    break;
                                 }
-                                break;
                             }
                         }
                     }
                     if (price) break;
+                }
+
+                // Super fallback for price if still not found
+                if (!price) {
+                    const priceRegex = /(?:Rs\.|PKR|₨|\$)\s*\d+(?:,\d{3})*(?:\.\d{2})?/i;
+                    const allElements = document.querySelectorAll('*');
+                    for (const element of allElements) {
+                        const text = element.innerText || element.textContent;
+                        if (text) {
+                            const match = text.match(priceRegex);
+                            if (match) {
+                                price = match[0].trim();
+                                break;
+                            }
+                        }
+                    }
                 }
 
                 // Super fallback for image
