@@ -131,12 +131,12 @@ module.exports = async (req, res) => {
                 // Enhanced price selectors specifically for Daraz
                 const priceSelectors = [
                     // Daraz specific selectors (most specific first)
-                    '.pdp-price_type_normal.pdp-price_color_orange.pdp-price_size_xl',  // Current price (orange)
-                    '.pdp-product-price > span.pdp-price:first-child',                   // First price span
-                    '.pdp-product-price > .notranslate:first-child',                     // First price using notranslate
-                    // Avoid selectors that might match the deleted price
-                    ':not(.pdp-price_type_deleted).pdp-price_type_normal',               // Exclude deleted price
-                    // ... rest of the existing selectors ...
+                    'span.pdp-price_color_orange',                    // Target orange price specifically
+                    'span.pdp-price_type_normal.pdp-price_color_orange',  // Another way to target current price
+                    '.pdp-product-price > span.pdp-price_color_orange',   // Direct child selector
+                    // Backup selectors
+                    '.pdp-product-price > span.pdp-price:not(.pdp-price_type_deleted)',
+                    '.pdp-price:not(.pdp-price_type_deleted):not(.pdp-price_color_lightgray)'
                 ];
 
                 let title = null;
@@ -181,8 +181,10 @@ module.exports = async (req, res) => {
                 for (const selector of priceSelectors) {
                     const elements = document.querySelectorAll(selector);
                     for (const element of elements) {
-                        // Skip if element has deleted price class
-                        if (element.classList.contains('pdp-price_type_deleted')) {
+                        // Multiple checks to ensure we get the current price
+                        if (element.classList.contains('pdp-price_type_deleted') ||
+                            element.classList.contains('pdp-price_color_lightgray') ||
+                            element.closest('.origin-block')) {  // Skip prices inside origin-block
                             continue;
                         }
 
@@ -195,8 +197,10 @@ module.exports = async (req, res) => {
                             const match = priceText.match(/Rs\.?\s*(\d+(?:,\d{3})*(?:\.\d{2})?)/i);
                             if (match) {
                                 const numericValue = match[1].replace(/,/g, '');
-                                price = 'Rs. ' + numericValue;
-                                break;
+                                if (parseInt(numericValue) > 0) {
+                                    price = 'Rs. ' + numericValue;
+                                    break;
+                                }
                             }
                         }
                     }
@@ -255,7 +259,7 @@ module.exports = async (req, res) => {
                             .map(el => ({
                                 text: el.innerText,
                                 html: el.innerHTML,
-                                classes: el.className
+                                classes: Array.from(el.classList).join(' ')
                             }))
                     }
                 };
