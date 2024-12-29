@@ -75,6 +75,13 @@ module.exports = async (req, res) => {
             const productData = await page.evaluate(() => {
                 // Generic title selectors that work across multiple sites
                 const mobileSelectors = [
+                    // Daraz specific selectors (putting these first)
+                    '.pdp-mod-product-badge-title',
+                    '.pdp-product-title',
+                    '.pdp-title',
+                    '[data-spm="product_title"]',
+                    'h1.pdp-title',
+                    'h1[data-spm="product_title"]',
                     // AliExpress/Alibaba
                     '.title--wrap--UUHae_g .title--title--G6mZm_W',
                     '.product-name',
@@ -83,9 +90,6 @@ module.exports = async (req, res) => {
                     // Amazon
                     '#productTitle',
                     '#title',
-                    // Daraz
-                    '.pdp-mod-product-badge-title',
-                    '.pdp-product-title',
                     // Generic
                     '[itemprop="name"]',
                     'h1'
@@ -93,6 +97,11 @@ module.exports = async (req, res) => {
 
                 // Generic image selectors
                 const imageSelectors = [
+                    // Daraz specific selectors
+                    '.pdp-mod-common-image img',
+                    '.gallery-preview-panel__image',
+                    '.item-gallery img',
+                    '[data-spm="preview"] img',
                     // AliExpress/Alibaba
                     '.image-view--image--Uu0Ba2D',
                     '.gallery-image--image--P2S3P_r',
@@ -102,8 +111,6 @@ module.exports = async (req, res) => {
                     '#landingImage',
                     '#imgBlkFront',
                     '#main-image',
-                    // Daraz
-                    '.pdp-mod-common-image img',
                     // Generic
                     '[itemprop="image"]',
                     '.product-image img',
@@ -113,6 +120,11 @@ module.exports = async (req, res) => {
 
                 // Generic price selectors
                 const priceSelectors = [
+                    // Daraz specific selectors
+                    '.pdp-price',
+                    '.pdp-product-price',
+                    '.pdp-price_type_normal',
+                    '[data-spm="price"]',
                     // AliExpress/Alibaba
                     '.price--originalText--Zsc6sMk',
                     '.product-price-current',
@@ -121,9 +133,6 @@ module.exports = async (req, res) => {
                     '#priceblock_ourprice',
                     '.a-price-whole',
                     '#price_inside_buybox',
-                    // Daraz
-                    '.pdp-price',
-                    '.pdp-product-price',
                     // Generic
                     '[itemprop="price"]',
                     '.product-price',
@@ -135,14 +144,17 @@ module.exports = async (req, res) => {
                 let image = null;
                 let price = null;
 
-                // Find title
+                // Enhanced title finding logic for Daraz
                 for (const selector of mobileSelectors) {
                     const element = document.querySelector(selector);
                     if (element) {
-                        const text = element.innerText.trim();
-                        if (text && text.length > 5 && !text.includes('Aliexpress')) {
-                            title = text;
-                            break;
+                        const text = element.innerText || element.textContent;
+                        if (text) {
+                            const cleanText = text.trim();
+                            if (cleanText && cleanText.length > 5) {
+                                title = cleanText;
+                                break;
+                            }
                         }
                     }
                 }
@@ -158,23 +170,34 @@ module.exports = async (req, res) => {
                             element.getAttribute('content') ||
                             element.getAttribute('data-zoom-image');
 
-                        if (image && !image.startsWith('data:')) {  // Avoid data URLs
+                        if (image && !image.startsWith('data:')) {
                             break;
                         }
                     }
                 }
 
-                // Enhanced price finding logic with cleanup
+                // Enhanced price finding logic
                 for (const selector of priceSelectors) {
                     const element = document.querySelector(selector);
                     if (element) {
-                        let priceText = element.innerText.trim();
+                        let priceText = element.innerText || element.textContent;
+                        if (priceText) {
+                            // Handle Daraz's specific price format (usually includes "Rs.")
+                            priceText = priceText.replace(/Rs\.|PKR/i, '').trim();
 
-                        // Extract the first price if multiple prices exist
-                        const priceMatch = priceText.match(/[\$\£\€]?\s*\d+([.,]\d{1,2})?/);
-                        if (priceMatch) {
-                            price = priceMatch[0].trim();
-                            break;
+                            // Extract numbers and decimals
+                            const priceMatch = priceText.match(/[\d,]+(\.\d{1,2})?/);
+                            if (priceMatch) {
+                                // Remove commas and convert to standard format
+                                price = priceMatch[0].replace(/,/g, '');
+                                // Add Rs. prefix for Daraz prices
+                                if (window.location.href.includes('daraz')) {
+                                    price = 'Rs. ' + price;
+                                } else if (!price.match(/[\$\£\€]/)) {
+                                    price = '$' + price;
+                                }
+                                break;
+                            }
                         }
                     }
                 }
@@ -213,6 +236,7 @@ module.exports = async (req, res) => {
                     price,
                     debug: {
                         foundSelectors: {
+                            title: mobileSelectors.find(s => document.querySelector(s)),
                             image: imageSelectors.find(s => document.querySelector(s)),
                             price: priceSelectors.find(s => document.querySelector(s))
                         }
