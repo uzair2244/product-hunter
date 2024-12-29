@@ -74,8 +74,21 @@ module.exports = async (req, res) => {
             // Wait for price element with a shorter timeout
             await page.waitForSelector('.pdp-product-price', { timeout: 3000 });
 
-            // Enhanced price finding logic without waiting
+            // Enhanced price selectors specifically for Daraz
             const productData = await page.evaluate(() => {
+                const priceSelectors = [
+                    // Daraz specific selectors (most specific first)
+                    '.pdp-price.pdp-price_type_normal.pdp-price_color_orange.pdp-price_size_xl',
+                    'span.pdp-price_type_normal.pdp-price_color_orange.pdp-price_size_xl',
+                    '.notranslate.pdp-price.pdp-price_type_normal.pdp-price_color_orange.pdp-price_size_xl',
+                    // Fallbacks (but still specific enough)
+                    '.pdp-product-price > .pdp-price_color_orange.pdp-price_size_xl',
+                    '.pdp-product-price > span.pdp-price_color_orange:not(.pdp-price_type_deleted)',
+                    // Simple fallbacks
+                    '.pdp-price',
+                    '.pdp-product-price span'
+                ];
+
                 let title = null;
                 let image = null;
                 let price = null;
@@ -195,21 +208,25 @@ module.exports = async (req, res) => {
                     if (image) break;
                 }
 
-                // Direct price extraction
-                try {
-                    const priceElement = document.querySelector('.pdp-product-price > span.pdp-price_color_orange.pdp-price_size_xl');
-                    if (priceElement && !priceElement.closest('.origin-block')) {
-                        let priceText = priceElement.innerText || priceElement.textContent;
+                // Simple price finding logic
+                for (const selector of priceSelectors) {
+                    const elements = document.querySelectorAll(selector);
+                    for (const element of elements) {
+                        let priceText = element.innerText || element.textContent;
                         if (priceText) {
+                            // Clean up the text
+                            priceText = priceText.trim();
+
+                            // Look for price with Rs. format
                             const match = priceText.match(/Rs\.?\s*(\d+(?:,\d{3})*(?:\.\d{2})?)/i);
                             if (match) {
                                 const numericValue = match[1].replace(/,/g, '');
                                 price = 'Rs. ' + numericValue;
+                                break;
                             }
                         }
                     }
-                } catch (error) {
-                    console.error('Price extraction error:', error);
+                    if (price) break;
                 }
 
                 // Super fallback for image
@@ -238,7 +255,7 @@ module.exports = async (req, res) => {
                         foundSelectors: {
                             title: mobileSelectors.find(s => document.querySelector(s)),
                             image: imageSelectors.find(s => document.querySelector(s)),
-                            price: price ? 'found' : 'not found'
+                            price: priceSelectors.find(s => document.querySelector(s))
                         },
                         priceElements: Array.from(document.querySelectorAll('.pdp-product-price'))
                             .map(el => ({
