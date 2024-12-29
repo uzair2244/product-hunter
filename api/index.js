@@ -56,11 +56,27 @@ module.exports = async (req, res) => {
             'Sec-Fetch-Dest': 'document',
         });
 
-        // Set a more realistic viewport
-        await page.setViewport({
-            width: 1920,
-            height: 1080
+        // Reduce memory usage
+        await page.setRequestInterception(true);
+        page.on('request', (request) => {
+            // Only allow document and xhr requests
+            if (['document', 'xhr'].includes(request.resourceType())) {
+                request.continue();
+            } else {
+                request.abort();
+            }
         });
+
+        // Set a more conservative viewport
+        await page.setViewport({
+            width: 1024,
+            height: 768
+        });
+
+        // Reduce memory usage with session settings
+        const client = await page.target().createCDPSession();
+        await client.send('Network.enable');
+        await client.send('Network.setBypassServiceWorker', { bypass: true });
 
         // Enable JavaScript for this case
         await page.setJavaScriptEnabled(true);
@@ -72,14 +88,14 @@ module.exports = async (req, res) => {
             });
         });
 
-        // Wait longer for initial load
+        // Reduce timeout to avoid function timeout
         await page.goto(link, {
-            waitUntil: "networkidle0",
-            timeout: 10000
+            waitUntil: "domcontentloaded", // Changed from networkidle0
+            timeout: 8000
         });
 
-        // Add a small delay to allow dynamic content to load
-        await page.waitForTimeout(2000);
+        // Reduce wait time
+        await page.waitForTimeout(1000);
 
         // Get all text content immediately after load
         const productData = await page.evaluate(() => {
@@ -145,12 +161,29 @@ module.exports = async (req, res) => {
         return res.status(200).json(productData);
 
     } catch (error) {
-        console.error("Error scraping product data:", error);
+        console.error("Error details:", {
+            message: error.message,
+            stack: error.stack,
+            name: error.name
+        });
 
         // Cleanup on error
-        if (page) await page.close().catch(console.error);
-        if (browser) await browser.close().catch(console.error);
-        _browser = null;
+        if (page) {
+            try {
+                await page.close();
+            } catch (e) {
+                console.error("Error closing page:", e);
+            }
+        }
+
+        // Don't close the browser, just clear the reference if needed
+        if (!_browser) {
+            try {
+                if (browser) await browser.close();
+            } catch (e) {
+                console.error("Error closing browser:", e);
+            }
+        }
 
         return res.status(500).json({
             message: "Error fetching product data",
