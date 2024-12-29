@@ -130,10 +130,11 @@ module.exports = async (req, res) => {
 
                 // Generic price selectors
                 const priceSelectors = [
-                    // Exact Daraz selectors based on the HTML structure
-                    'span.notranslate.pdp-price.pdp-price_type_normal.pdp-price_color_orange.pdp-price_size_xl',
-                    '.pdp-product-price > span.notranslate.pdp-price:not(.pdp-price_type_deleted)',
-                    '.pdp-product-price span.pdp-price_type_normal.pdp-price_color_orange',
+                    // Daraz specific selectors - more precise targeting
+                    '.pdp-product-price .pdp-price_type_normal.pdp-price_color_orange',
+                    '.pdp-mod-product-price .pdp-price_type_normal',
+                    '#module_product_price_1 .pdp-price_type_normal',
+                    '.pdp-product-price span.notranslate:not(.pdp-price_type_deleted)',
                     // Keep existing non-Daraz selectors
                     '.PriceComponent_wrapper__2Kc_j',
                     '.ProductPrice_price__3TmZi',
