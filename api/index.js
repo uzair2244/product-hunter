@@ -130,26 +130,14 @@ module.exports = async (req, res) => {
 
                 // Generic price selectors
                 const priceSelectors = [
-                    // Daraz specific selectors - more precise targeting
-                    '.pdp-product-price .pdp-price_type_normal.pdp-price_color_orange',
-                    '.pdp-mod-product-price .pdp-price_type_normal',
-                    '#module_product_price_1 .pdp-price_type_normal',
-                    '.pdp-product-price span.notranslate:not(.pdp-price_type_deleted)',
-                    // Keep existing non-Daraz selectors
-                    '.PriceComponent_wrapper__2Kc_j',
-                    '.ProductPrice_price__3TmZi',
-                    '[data-testid="product-price"]',
-                    '.price-current-value',
-                    '.price--originalText--Zsc6sMk',
-                    '.product-price-current',
-                    '.uniform-banner-box-price',
-                    '#priceblock_ourprice',
-                    '.a-price-whole',
-                    '#price_inside_buybox',
-                    '[itemprop="price"]',
-                    '.product-price',
-                    '.price-current',
-                    '.current-price'
+                    // Daraz-specific selectors (updated)
+                    '.pdp-price',                           // Base price class
+                    '.pdp-price_type_normal',              // Normal price type
+                    '.pdp-product-price span',             // General price span
+                    '.pdp-price_color_orange',             // Orange-colored price
+                    '.pdp-mod-product-price-view span',    // Price view span
+                    '[data-spm="price"]',                  // Price by data attribute
+                    // ... keep existing non-Daraz selectors ...
                 ];
 
                 let title = null;
@@ -191,108 +179,140 @@ module.exports = async (req, res) => {
                 }
 
                 // Enhanced price finding logic
-                try {
-                    // Diagnostic logging
-                    const diagnostics = {
-                        url: window.location.href,
-                        moduleExists: !!document.querySelector('#module_product_price_1'),
-                        allPriceElements: Array.from(document.querySelectorAll('.pdp-price')).map(el => ({
-                            text: el.textContent,
-                            classes: el.className,
-                            isVisible: el.offsetParent !== null,
-                            parentClasses: el.parentElement?.className
-                        })),
-                        htmlSnapshot: document.querySelector('#module_product_price_1')?.innerHTML || 'Not found'
-                    };
-                    console.log('Diagnostics:', JSON.stringify(diagnostics, null, 2));
+                for (const selector of priceSelectors) {
+                    try {
+                        // Specific Daraz price extraction
+                        if (window.location.href.includes('daraz')) {
+                            // Method 1: Try structured approach
+                            const priceElements = document.querySelectorAll(selector);
+                            for (const element of priceElements) {
+                                // Skip if it's a deleted/original price
+                                if (element.classList.contains('pdp-price_type_deleted')) continue;
 
-                    // Try multiple approaches for Daraz
-                    if (window.location.href.includes('daraz')) {
-                        // Approach 1: Direct class targeting
-                        const orangePriceElement = document.querySelector('span.pdp-price_color_orange');
-                        if (orangePriceElement) {
-                            price = orangePriceElement.textContent.trim();
-                            console.log('Found via direct orange class:', price);
-                        }
+                                // Get direct text content
+                                let priceText = element.innerText || element.textContent;
+                                if (!priceText) continue;
 
-                        // Approach 2: Search all spans within price container
-                        if (!price) {
-                            const priceSpans = document.querySelectorAll('#module_product_price_1 span');
-                            for (const span of priceSpans) {
-                                if (span.textContent.includes('Rs.') && !span.classList.contains('pdp-price_type_deleted')) {
-                                    price = span.textContent.trim();
-                                    console.log('Found via span search:', price);
+                                // Clean up the price text
+                                priceText = priceText.replace(/Rs\.|PKR|₨/gi, '').trim();
+
+                                // Match the number pattern
+                                const priceMatch = priceText.match(/[\d,]+(\.\d{1,2})?/);
+                                if (priceMatch) {
+                                    price = 'Rs. ' + priceMatch[0].replace(/,/g, '');
+                                    console.log('Found Daraz price:', price);
                                     break;
                                 }
                             }
-                        }
 
-                        // Approach 3: Try getting it from any price element
-                        if (!price) {
-                            document.querySelectorAll('.pdp-price').forEach(el => {
-                                console.log('Price element found:', {
-                                    text: el.textContent,
-                                    classes: el.className,
-                                    isVisible: el.offsetParent !== null
-                                });
-                                if (!price &&
-                                    !el.classList.contains('pdp-price_type_deleted') &&
-                                    el.textContent.includes('Rs.')) {
-                                    price = el.textContent.trim();
-                                    console.log('Found via general search:', price);
-                                }
-                            });
-                        }
-
-                        // Approach 4: Most aggressive approach - get any element with price-like content
-                        if (!price) {
-                            const allElements = document.querySelectorAll('*');
-                            for (const el of allElements) {
-                                const text = el.textContent;
-                                if (text && text.includes('Rs.') && /\d+/.test(text) && !text.includes('deleted')) {
-                                    price = text.trim();
-                                    console.log('Found via aggressive search:', price);
-                                    break;
+                            // Method 2: Direct parent-child approach
+                            if (!price) {
+                                const priceContainer = document.querySelector('.pdp-product-price');
+                                if (priceContainer) {
+                                    const currentPrice = priceContainer.querySelector(':not(.pdp-price_type_deleted)');
+                                    if (currentPrice) {
+                                        let priceText = currentPrice.innerText.trim();
+                                        priceText = priceText.replace(/Rs\.|PKR|₨/gi, '').trim();
+                                        const priceMatch = priceText.match(/[\d,]+(\.\d{1,2})?/);
+                                        if (priceMatch) {
+                                            price = 'Rs. ' + priceMatch[0].replace(/,/g, '');
+                                            console.log('Found Daraz price (method 2):', price);
+                                        }
+                                    }
                                 }
                             }
-                        }
-                    }
 
-                    // If still no price, try original selectors
-                    if (!price) {
-                        // ... existing selector logic ...
-                    }
+                            if (price) break;
+                        }
 
-                    return {
-                        title,
-                        image,
-                        price,
-                        debug: {
-                            foundSelectors: {
-                                title: mobileSelectors.find(s => document.querySelector(s)),
-                                image: imageSelectors.find(s => document.querySelector(s)),
-                                price: priceSelectors.find(s => document.querySelector(s))
-                            },
-                            priceAttempts: priceSelectors.map(s => ({
-                                selector: s,
-                                found: !!document.querySelector(s),
-                                text: document.querySelector(s)?.innerText || null
-                            })),
-                            diagnostics  // Include diagnostics in debug output
+                        // Original price finding logic for other sites
+                        const elements = document.querySelectorAll(selector);
+                        for (const element of elements) {
+                            // Ignore if it's a deleted/original price
+                            if (element.classList.contains('pdp-price_type_deleted')) {
+                                console.log('Skipping deleted price');
+                                continue;
+                            }
+
+                            // Handle different currency formats
+                            let priceText = element.innerText || element.textContent;
+                            priceText = priceText.replace(/Rs\.|PKR|₨/i, '').trim();
+                            console.log(`Cleaned price text: ${priceText}`);
+
+                            // Extract numbers and decimals
+                            const priceMatch = priceText.match(/[\d,]+(\.\d{1,2})?/);
+                            if (priceMatch) {
+                                price = priceMatch[0].replace(/,/g, '');
+                                if (window.location.href.includes('daraz')) {
+                                    price = 'Rs. ' + price;
+                                }
+                                console.log(`Final price: ${price}`);
+                                break;
+                            }
                         }
-                    };
-                } catch (err) {
-                    console.error('Price extraction error:', err);
-                    return {
-                        title,
-                        image,
-                        price: null,
-                        debug: {
-                            error: err.message,
-                            stack: err.stack
-                        }
-                    };
+                    } catch (err) {
+                        console.log('Error in price extraction:', err);
+                        continue;
+                    }
                 }
+
+                // Super fallback for image
+                if (!image) {
+                    const allImages = document.querySelectorAll('img');
+                    for (const img of allImages) {
+                        const src = img.src || img.getAttribute('data-src');
+                        if (src &&
+                            !src.startsWith('data:') &&
+                            (src.includes('product') ||
+                                src.includes('image') ||
+                                src.match(/\.(jpg|jpeg|png|webp)/i)) &&
+                            !src.includes('icon') &&
+                            !src.includes('logo')) {
+                            image = src;
+                            break;
+                        }
+                    }
+                }
+
+                // Clean up price if needed
+                if (price) {
+                    // Ensure price starts with a currency symbol if it doesn't have one
+                    if (!price.match(/[\$\£\€]/)) {
+                        price = '$' + price;
+                    }
+                    // Remove any extra text after the price
+                    price = price.split('\n')[0].trim();
+                }
+
+                // Add debug logging
+                console.log('Final price result:', price);
+                console.log('DOM structure:', document.querySelector('#module_product_price_1')?.outerHTML);
+
+                // Add more debug logging
+                console.log('Price extraction debug:', {
+                    url: window.location.href,
+                    priceElements: document.querySelectorAll('.pdp-price').length,
+                    priceContainer: !!document.querySelector('.pdp-product-price'),
+                    finalPrice: price
+                });
+
+                return {
+                    title,
+                    image,
+                    price,
+                    debug: {
+                        foundSelectors: {
+                            title: mobileSelectors.find(s => document.querySelector(s)),
+                            image: imageSelectors.find(s => document.querySelector(s)),
+                            price: priceSelectors.find(s => document.querySelector(s))
+                        },
+                        priceAttempts: priceSelectors.map(s => ({
+                            selector: s,
+                            found: !!document.querySelector(s),
+                            text: document.querySelector(s)?.innerText || null
+                        }))
+                    }
+                };
             });
 
             console.log('URL:', await page.url());
