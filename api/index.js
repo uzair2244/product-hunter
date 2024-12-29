@@ -88,70 +88,87 @@ module.exports = async (req, res) => {
             });
         });
 
-        // Reduce timeout to avoid function timeout
+        // Enhanced stealth settings
+        await page.evaluateOnNewDocument(() => {
+            // Mask webdriver
+            Object.defineProperty(navigator, 'webdriver', { get: () => false });
+
+            // Add missing properties
+            window.chrome = {
+                runtime: {}
+            };
+
+            // Modify navigator properties
+            const newProto = navigator.__proto__;
+            delete newProto.webdriver;
+            navigator.__proto__ = newProto;
+        });
+
+        // Add user agent
+        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36');
+
+        // Wait for network to be idle
         await page.goto(link, {
-            waitUntil: "domcontentloaded", // Changed from networkidle0
-            timeout: 8000
+            waitUntil: ['domcontentloaded', 'networkidle0'],
+            timeout: 10000
         });
 
-        // Reduce wait time
-        await page.waitForTimeout(1000);
+        // Wait for potential redirects
+        await page.waitForTimeout(2000);
 
-        // Get all text content immediately after load
-        const productData = await page.evaluate(() => {
-            // Try multiple methods to get the title
-            const methods = [
-                // Method 1: Direct selectors
-                () => {
-                    const selectors = [
-                        'div.title--wrap--UUHae_g h1[data-pl="product-title"]',
-                        'h1.product-title',
-                        'h1[data-pl="product-title"]',
-                        '.product-title',
-                        'h1',
-                        '[data-pl="product-title"]',
-                        '.title'
-                    ];
-                    for (const selector of selectors) {
-                        const element = document.querySelector(selector);
-                        if (element) return element.innerText.trim();
+        // Check if we're on a challenge page
+        const isChallengePresent = await page.evaluate(() => {
+            return window.location.href.includes('_____tmd_____/punish') ||
+                document.title.includes('verify') ||
+                document.body.innerText.includes('verify');
+        });
+
+        if (isChallengePresent) {
+            throw new Error('Challenge page detected - blocked by anti-bot measures');
+        }
+
+        // Try to extract content with retries
+        let retries = 3;
+        let productData = { title: null };
+
+        while (retries > 0 && !productData.title) {
+            productData = await page.evaluate(() => {
+                const selectors = [
+                    'h1.product-title-text',
+                    '.product-title',
+                    'h1[data-pl="product-title"]',
+                    '.title--wrap--UUHae_g h1',
+                    'h1'
+                ];
+
+                for (const selector of selectors) {
+                    const element = document.querySelector(selector);
+                    if (element && element.innerText.trim()) {
+                        return { title: element.innerText.trim() };
                     }
-                    return null;
-                },
-                // Method 2: Find first visible h1
-                () => {
-                    const h1s = Array.from(document.getElementsByTagName('h1'));
-                    const visibleH1 = h1s.find(h1 => {
-                        const style = window.getComputedStyle(h1);
-                        return style.display !== 'none' && style.visibility !== 'hidden';
-                    });
-                    return visibleH1 ? visibleH1.innerText.trim() : null;
-                },
-                // Method 3: Find largest text in first viewport
-                () => {
-                    const elements = document.querySelectorAll('*');
-                    let largestText = '';
-                    elements.forEach(el => {
-                        if (el.innerText &&
-                            el.innerText.length > largestText.length &&
-                            el.getBoundingClientRect().top < window.innerHeight) {
-                            largestText = el.innerText.trim();
-                        }
-                    });
-                    return largestText || null;
                 }
-            ];
 
-            // Try each method until we get a result
-            for (const method of methods) {
-                const result = method();
-                if (result) return { title: result };
+                // Fallback: get any visible text that looks like a title
+                const h1s = Array.from(document.getElementsByTagName('h1'));
+                for (const h1 of h1s) {
+                    if (h1.offsetHeight > 0 && h1.innerText.trim()) {
+                        return { title: h1.innerText.trim() };
+                    }
+                }
+
+                return { title: null };
+            });
+
+            if (!productData.title) {
+                await page.waitForTimeout(1000);
+                retries--;
             }
+        }
 
-            return { title: null };
-        });
-
-        console.log('Scraped data:', productData);
+        // Add debug information
+        console.log('Current URL:', await page.url());
+        console.log('Page Title:', await page.title());
+        console.log('Scraped Data:', productData);
 
         clearTimeout(timeout);
 
