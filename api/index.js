@@ -71,11 +71,15 @@ module.exports = async (req, res) => {
                 timeout: 5000
             });
 
-            // Wait for price element to be available
-            await page.waitForSelector('.pdp-product-price', { timeout: 5000 });
+            // Wait for price element with a shorter timeout
+            await page.waitForSelector('.pdp-product-price', { timeout: 3000 });
 
-            // Quick extract with minimal selectors
+            // Enhanced price finding logic
             const productData = await page.evaluate(() => {
+                let title = null;
+                let image = null;
+                let price = null;
+
                 // Generic title selectors that work across multiple sites
                 const mobileSelectors = [
                     // Daraz specific selectors (enhanced)
@@ -157,50 +161,52 @@ module.exports = async (req, res) => {
                     });
                 };
 
-                // Wait for price container and extract price
-                return waitForElement('.pdp-product-price').then(priceContainer => {
-                    let title = null;
-                    let image = null;
-                    let price = null;
-
-                    // Enhanced title finding logic with additional checks
-                    for (const selector of mobileSelectors) {
-                        const elements = document.querySelectorAll(selector);
-                        for (const element of elements) {
-                            const text = element.innerText || element.textContent;
-                            if (text) {
-                                const cleanText = text.trim();
-                                if (cleanText && cleanText.length > 5 && !cleanText.includes('verify')) {
-                                    title = cleanText;
-                                    break;
-                                }
-                            }
-                        }
-                        if (title) break;
-                    }
-
-                    // Enhanced image finding logic
-                    for (const selector of imageSelectors) {
-                        const elements = document.querySelectorAll(selector);
-                        for (const element of elements) {
-                            image = element.src ||
-                                element.getAttribute('data-src') ||
-                                element.getAttribute('data-lazy-src') ||
-                                element.getAttribute('content') ||
-                                element.getAttribute('data-zoom-image') ||
-                                element.getAttribute('data-original');  // Additional attribute check
-
-                            if (image && !image.startsWith('data:') && !image.includes('placeholder')) {
+                // Enhanced title finding logic with additional checks
+                for (const selector of mobileSelectors) {
+                    const elements = document.querySelectorAll(selector);
+                    for (const element of elements) {
+                        const text = element.innerText || element.textContent;
+                        if (text) {
+                            const cleanText = text.trim();
+                            if (cleanText && cleanText.length > 5 && !cleanText.includes('verify')) {
+                                title = cleanText;
                                 break;
                             }
                         }
-                        if (image) break;
                     }
+                    if (title) break;
+                }
 
-                    if (priceContainer) {
-                        // Try to get the current price element
-                        const priceElement = priceContainer.querySelector('span.pdp-price_color_orange.pdp-price_size_xl:not(.pdp-price_type_deleted)');
+                // Enhanced image finding logic
+                for (const selector of imageSelectors) {
+                    const elements = document.querySelectorAll(selector);
+                    for (const element of elements) {
+                        image = element.src ||
+                            element.getAttribute('data-src') ||
+                            element.getAttribute('data-lazy-src') ||
+                            element.getAttribute('content') ||
+                            element.getAttribute('data-zoom-image') ||
+                            element.getAttribute('data-original');  // Additional attribute check
 
+                        if (image && !image.startsWith('data:') && !image.includes('placeholder')) {
+                            break;
+                        }
+                    }
+                    if (image) break;
+                }
+
+                // Direct price extraction without waiting
+                const priceContainer = document.querySelector('.pdp-product-price');
+                if (priceContainer) {
+                    // Try multiple approaches to get the price
+                    const priceSelectors = [
+                        'span.pdp-price_color_orange.pdp-price_size_xl:not(.pdp-price_type_deleted)',
+                        '.pdp-price.pdp-price_type_normal.pdp-price_color_orange',
+                        '.notranslate.pdp-price_color_orange:not(.pdp-price_type_deleted)'
+                    ];
+
+                    for (const selector of priceSelectors) {
+                        const priceElement = priceContainer.querySelector(selector);
                         if (priceElement && !priceElement.closest('.origin-block')) {
                             let priceText = priceElement.innerText || priceElement.textContent;
                             if (priceText) {
@@ -208,49 +214,50 @@ module.exports = async (req, res) => {
                                 if (match) {
                                     const numericValue = match[1].replace(/,/g, '');
                                     price = 'Rs. ' + numericValue;
+                                    break;
                                 }
                             }
                         }
                     }
+                }
 
-                    // Super fallback for image
-                    if (!image) {
-                        const allImages = document.querySelectorAll('img');
-                        for (const img of allImages) {
-                            const src = img.src || img.getAttribute('data-src');
-                            if (src &&
-                                !src.startsWith('data:') &&
-                                (src.includes('product') ||
-                                    src.includes('image') ||
-                                    src.match(/\.(jpg|jpeg|png|webp)/i)) &&
-                                !src.includes('icon') &&
-                                !src.includes('logo')) {
-                                image = src;
-                                break;
-                            }
+                // Super fallback for image
+                if (!image) {
+                    const allImages = document.querySelectorAll('img');
+                    for (const img of allImages) {
+                        const src = img.src || img.getAttribute('data-src');
+                        if (src &&
+                            !src.startsWith('data:') &&
+                            (src.includes('product') ||
+                                src.includes('image') ||
+                                src.match(/\.(jpg|jpeg|png|webp)/i)) &&
+                            !src.includes('icon') &&
+                            !src.includes('logo')) {
+                            image = src;
+                            break;
                         }
                     }
+                }
 
-                    return {
-                        title,
-                        image,
-                        price,
-                        debug: {
-                            foundSelectors: {
-                                title: mobileSelectors.find(s => document.querySelector(s)),
-                                image: imageSelectors.find(s => document.querySelector(s)),
-                                price: price ? 'found' : 'not found'
-                            },
-                            priceElements: Array.from(document.querySelectorAll('.pdp-product-price'))
-                                .map(el => ({
-                                    text: el.innerText,
-                                    html: el.innerHTML,
-                                    classes: Array.from(el.classList).join(' '),
-                                    hasOrangePrice: !!el.querySelector('.pdp-price_color_orange')
-                                }))
-                        }
-                    };
-                });
+                return {
+                    title,
+                    image,
+                    price,
+                    debug: {
+                        foundSelectors: {
+                            title: mobileSelectors.find(s => document.querySelector(s)),
+                            image: imageSelectors.find(s => document.querySelector(s)),
+                            price: price ? 'found' : 'not found'
+                        },
+                        priceElements: Array.from(document.querySelectorAll('.pdp-product-price'))
+                            .map(el => ({
+                                text: el.innerText,
+                                html: el.innerHTML,
+                                classes: Array.from(el.classList).join(' '),
+                                hasOrangePrice: !!el.querySelector('.pdp-price_color_orange')
+                            }))
+                    }
+                };
             });
 
             console.log('URL:', await page.url());
