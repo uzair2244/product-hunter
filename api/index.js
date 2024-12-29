@@ -57,36 +57,66 @@ module.exports = async (req, res) => {
         // Set user agent
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
 
-        // Navigate with reduced timeout
+        // Navigate with minimal wait
         await page.goto(link, {
-            waitUntil: "networkidle0",
-            timeout: 4000
+            waitUntil: "domcontentloaded",
+            timeout: 3000
         });
 
-        await page.waitForSelector('h1', { timeout: 2000 }).catch(() => null);
-
-        // Updated selector and added multiple fallback selectors
+        // Get all text content immediately after load
         const productData = await page.evaluate(() => {
-            const selectors = [
-                'div.title--wrap--UUHae_g h1[data-pl="product-title"]',
-                'h1.product-title',
-                'h1[data-pl="product-title"]',
-                '.product-title',
-                'h1'
+            // Try multiple methods to get the title
+            const methods = [
+                // Method 1: Direct selectors
+                () => {
+                    const selectors = [
+                        'div.title--wrap--UUHae_g h1[data-pl="product-title"]',
+                        'h1.product-title',
+                        'h1[data-pl="product-title"]',
+                        '.product-title',
+                        'h1',
+                        '[data-pl="product-title"]',
+                        '.title'
+                    ];
+                    for (const selector of selectors) {
+                        const element = document.querySelector(selector);
+                        if (element) return element.innerText.trim();
+                    }
+                    return null;
+                },
+                // Method 2: Find first visible h1
+                () => {
+                    const h1s = Array.from(document.getElementsByTagName('h1'));
+                    const visibleH1 = h1s.find(h1 => {
+                        const style = window.getComputedStyle(h1);
+                        return style.display !== 'none' && style.visibility !== 'hidden';
+                    });
+                    return visibleH1 ? visibleH1.innerText.trim() : null;
+                },
+                // Method 3: Find largest text in first viewport
+                () => {
+                    const elements = document.querySelectorAll('*');
+                    let largestText = '';
+                    elements.forEach(el => {
+                        if (el.innerText &&
+                            el.innerText.length > largestText.length &&
+                            el.getBoundingClientRect().top < window.innerHeight) {
+                            largestText = el.innerText.trim();
+                        }
+                    });
+                    return largestText || null;
+                }
             ];
 
-            let titleElement = null;
-            for (const selector of selectors) {
-                titleElement = document.querySelector(selector);
-                if (titleElement) break;
+            // Try each method until we get a result
+            for (const method of methods) {
+                const result = method();
+                if (result) return { title: result };
             }
 
-            return {
-                title: titleElement ? titleElement.innerText.trim() : null,
-            };
+            return { title: null };
         });
 
-        // Add debug logging
         console.log('Scraped data:', productData);
 
         clearTimeout(timeout);
