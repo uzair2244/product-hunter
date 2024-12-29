@@ -63,6 +63,8 @@ module.exports = async (req, res) => {
             timeout: 4000
         });
 
+        await page.waitForSelector('h1', { timeout: 2000 }).catch(() => null);
+
         // Updated selector and added multiple fallback selectors
         const productData = await page.evaluate(() => {
             const selectors = [
