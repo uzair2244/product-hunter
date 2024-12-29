@@ -207,8 +207,11 @@ module.exports = async (req, res) => {
                     for (const element of elements) {
                         let priceText = element.innerText || element.textContent;
                         if (priceText) {
-                            // Handle different currency formats and clean up the text
-                            priceText = priceText.replace(/Rs\.|PKR|₨|,/gi, '').trim();
+                            // Store original text for currency detection
+                            const originalText = priceText;
+
+                            // Clean up the text but keep original for currency detection
+                            priceText = priceText.replace(/,/g, '').trim();
 
                             // Try to extract the price using different patterns
                             let priceMatch = priceText.match(/(\d+(?:\.\d{1,2})?)/);
@@ -216,16 +219,22 @@ module.exports = async (req, res) => {
                             if (priceMatch) {
                                 let extractedPrice = priceMatch[0];
 
-                                // Add appropriate currency symbol based on the site
-                                if (window.location.href.includes('daraz')) {
+                                // Determine the currency based on URL and text content
+                                if (window.location.href.includes('daraz') ||
+                                    originalText.includes('Rs.') ||
+                                    originalText.includes('PKR') ||
+                                    originalText.includes('₨')) {
                                     price = 'Rs. ' + extractedPrice;
                                     break;
                                 } else if (window.location.href.includes('temu')) {
                                     price = '$' + extractedPrice;
                                     break;
+                                } else if (originalText.includes('$')) {
+                                    price = '$' + extractedPrice;
+                                    break;
                                 } else {
-                                    // Default to $ if no specific currency is detected
-                                    price = priceText.includes('$') ? priceText : '$' + extractedPrice;
+                                    // Default case
+                                    price = '$' + extractedPrice;
                                     break;
                                 }
                             }
@@ -234,18 +243,41 @@ module.exports = async (req, res) => {
                     if (price) break;
                 }
 
-                // Super fallback for price if still not found
+                // Super fallback for price with better currency detection
                 if (!price) {
-                    const priceRegex = /(?:Rs\.|PKR|₨|\$)\s*\d+(?:,\d{3})*(?:\.\d{2})?/i;
+                    // Look for price with currency symbols
+                    const priceRegex = /(?:Rs\.?|PKR|₨)\s*\d+(?:,\d{3})*(?:\.\d{2})?|\$\s*\d+(?:,\d{3})*(?:\.\d{2})?/i;
                     const allElements = document.querySelectorAll('*');
                     for (const element of allElements) {
                         const text = element.innerText || element.textContent;
                         if (text) {
                             const match = text.match(priceRegex);
                             if (match) {
-                                price = match[0].trim();
+                                let matchedPrice = match[0].trim();
+                                // Clean up the matched price
+                                if (matchedPrice.match(/(?:Rs\.?|PKR|₨)/i)) {
+                                    // Convert to standard Rs. format
+                                    matchedPrice = matchedPrice.replace(/(?:Rs\.?|PKR|₨)/i, '').trim();
+                                    matchedPrice = 'Rs. ' + matchedPrice.replace(/,/g, '');
+                                }
+                                price = matchedPrice;
                                 break;
                             }
+                        }
+                    }
+                }
+
+                // Final price cleanup
+                if (price) {
+                    // Remove any extra whitespace or newlines
+                    price = price.replace(/\s+/g, ' ').trim();
+
+                    // Ensure proper currency format
+                    if (window.location.href.includes('daraz')) {
+                        // Convert any mistakenly added $ to Rs.
+                        price = price.replace('$', '');
+                        if (!price.includes('Rs.')) {
+                            price = 'Rs. ' + price;
                         }
                     }
                 }
@@ -266,16 +298,6 @@ module.exports = async (req, res) => {
                             break;
                         }
                     }
-                }
-
-                // Clean up price if needed
-                if (price) {
-                    // Ensure price starts with a currency symbol if it doesn't have one
-                    if (!price.match(/[\$\£\€]/)) {
-                        price = '$' + price;
-                    }
-                    // Remove any extra text after the price
-                    price = price.split('\n')[0].trim();
                 }
 
                 return {
