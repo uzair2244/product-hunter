@@ -39,29 +39,47 @@ module.exports = async (req, res) => {
         browser = await getBrowser();
         page = await browser.newPage();
 
-        // Additional optimization: Disable JavaScript and CSS
-        await page.setJavaScriptEnabled(false);
-
-        // Optimize page settings
-        await page.setRequestInterception(true);
-        page.on('request', (request) => {
-            // Block unnecessary resources
-            const resourceType = request.resourceType();
-            if (['image', 'stylesheet', 'font', 'media'].includes(resourceType)) {
-                request.abort();
-            } else {
-                request.continue();
-            }
+        // Enhanced anti-detection measures
+        await page.setExtraHTTPHeaders({
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+            'Cache-Control': 'max-age=0',
+            'sec-ch-ua': '"Google Chrome";v="119", "Chromium";v="119", "Not?A_Brand";v="24"',
+            'sec-ch-ua-mobile': '?0',
+            'sec-ch-ua-platform': '"Windows"',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-User': '?1',
+            'Sec-Fetch-Dest': 'document',
         });
 
-        // Set user agent
-        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+        // Set a more realistic viewport
+        await page.setViewport({
+            width: 1920,
+            height: 1080
+        });
 
-        // Navigate with minimal wait
+        // Enable JavaScript for this case
+        await page.setJavaScriptEnabled(true);
+
+        // Remove headless flag detection
+        await page.evaluateOnNewDocument(() => {
+            Object.defineProperty(navigator, 'webdriver', {
+                get: () => undefined
+            });
+        });
+
+        // Wait longer for initial load
         await page.goto(link, {
-            waitUntil: "domcontentloaded",
-            timeout: 3000
+            waitUntil: "networkidle0",
+            timeout: 10000
         });
+
+        // Add a small delay to allow dynamic content to load
+        await page.waitForTimeout(2000);
 
         // Get all text content immediately after load
         const productData = await page.evaluate(() => {
