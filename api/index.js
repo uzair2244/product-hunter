@@ -179,40 +179,20 @@ module.exports = async (req, res) => {
 
                 // Enhanced price finding logic
                 try {
-                    // First, get the main price container
-                    const priceContainer = document.querySelector('.pdp-product-price');
-                    if (priceContainer) {
-                        // Get the first price element that's a direct child (not in origin-block)
-                        const currentPrice = priceContainer.querySelector(':scope > span.pdp-price_color_orange');
+                    for (const selector of priceSelectors) {
+                        const elements = document.querySelectorAll(selector);
+                        for (const element of elements) {
+                            // Only process if element is a direct child of pdp-product-price
+                            // and not inside origin-block
+                            if (element.parentElement.classList.contains('pdp-product-price') &&
+                                !element.closest('.origin-block')) {
 
-                        if (currentPrice) {
-                            let priceText = currentPrice.innerText || currentPrice.textContent;
-                            if (priceText) {
-                                // Clean up the text
-                                priceText = priceText.trim();
-
-                                // Look for price with Rs. format
-                                const match = priceText.match(/Rs\.?\s*(\d+(?:,\d{3})*(?:\.\d{2})?)/i);
-                                if (match) {
-                                    const numericValue = match[1].replace(/,/g, '');
-                                    price = 'Rs. ' + numericValue;
-                                }
-                            }
-                        }
-                    }
-
-                    // If still no price found, try fallback selectors
-                    if (!price) {
-                        const priceSelectors = [
-                            ':scope > span.pdp-price_color_orange.pdp-price_size_xl',
-                            ':scope > span.notranslate.pdp-price_type_normal.pdp-price_color_orange'
-                        ];
-
-                        for (const selector of priceSelectors) {
-                            const priceElement = document.querySelector('.pdp-product-price').querySelector(selector);
-                            if (priceElement && !priceElement.closest('.origin-block')) {
-                                let priceText = priceElement.innerText || priceElement.textContent;
+                                let priceText = element.innerText || element.textContent;
                                 if (priceText) {
+                                    // Clean up the text
+                                    priceText = priceText.trim();
+
+                                    // Look for price with Rs. format
                                     const match = priceText.match(/Rs\.?\s*(\d+(?:,\d{3})*(?:\.\d{2})?)/i);
                                     if (match) {
                                         const numericValue = match[1].replace(/,/g, '');
@@ -222,6 +202,7 @@ module.exports = async (req, res) => {
                                 }
                             }
                         }
+                        if (price) break;
                     }
                 } catch (error) {
                     console.error('Price extraction error:', error);
@@ -252,7 +233,8 @@ module.exports = async (req, res) => {
                     debug: {
                         foundSelectors: {
                             title: mobileSelectors.find(s => document.querySelector(s)),
-                            image: imageSelectors.find(s => document.querySelector(s))
+                            image: imageSelectors.find(s => document.querySelector(s)),
+                            price: priceSelectors.find(s => document.querySelector(s))
                         },
                         priceElements: Array.from(document.querySelectorAll('.pdp-product-price'))
                             .map(el => ({
