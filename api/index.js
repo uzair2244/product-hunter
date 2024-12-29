@@ -75,43 +75,53 @@ module.exports = async (req, res) => {
             const productData = await page.evaluate(() => {
                 // Generic title selectors that work across multiple sites
                 const mobileSelectors = [
-                    // Daraz specific selectors (putting these first)
+                    // Daraz specific selectors (enhanced)
                     '.pdp-mod-product-badge-title',
                     '.pdp-product-title',
                     '.pdp-title',
                     '[data-spm="product_title"]',
                     'h1.pdp-title',
                     'h1[data-spm="product_title"]',
-                    // AliExpress/Alibaba
+                    '.pdp-mod-product-title',           // Additional Daraz selector
+                    '.pdp-name',                        // Additional Daraz selector
+                    // Temu specific selectors
+                    '.DetailName_title__1sYwd',
+                    '.ProductInfo_title__3E3Rp',
+                    '.ProductTitle_wrapper__3RJ_6',
+                    '[data-testid="product-title"]',
+                    // Previous selectors remain...
                     '.title--wrap--UUHae_g .title--title--G6mZm_W',
                     '.product-name',
                     '.product-title-text',
                     '[data-pl="product-title"]',
-                    // Amazon
                     '#productTitle',
                     '#title',
-                    // Generic
                     '[itemprop="name"]',
                     'h1'
                 ];
 
                 // Generic image selectors
                 const imageSelectors = [
-                    // Daraz specific selectors
+                    // Daraz enhanced selectors
                     '.pdp-mod-common-image img',
                     '.gallery-preview-panel__image',
                     '.item-gallery img',
                     '[data-spm="preview"] img',
-                    // AliExpress/Alibaba
+                    '.pdp-block-main_pic img',          // Additional Daraz selector
+                    '.next-slick-list img',             // Additional Daraz selector
+                    // Temu specific selectors
+                    '.DetailGallery_mainImage__2_LG9',
+                    '.ProductGallery_image__3UIOE',
+                    '[data-testid="product-image"]',
+                    '.gallery-preview img',
+                    // Previous selectors remain...
                     '.image-view--image--Uu0Ba2D',
                     '.gallery-image--image--P2S3P_r',
                     '.pdp-image',
                     'img[data-role="pdp-image"]',
-                    // Amazon
                     '#landingImage',
                     '#imgBlkFront',
                     '#main-image',
-                    // Generic
                     '[itemprop="image"]',
                     '.product-image img',
                     '.main-image img',
@@ -120,20 +130,25 @@ module.exports = async (req, res) => {
 
                 // Generic price selectors
                 const priceSelectors = [
-                    // Daraz specific selectors
+                    // Daraz enhanced selectors
                     '.pdp-price',
                     '.pdp-product-price',
                     '.pdp-price_type_normal',
                     '[data-spm="price"]',
-                    // AliExpress/Alibaba
+                    '.pdp-mod-product-price-view',      // Additional Daraz selector
+                    '.pdp-price-box',                   // Additional Daraz selector
+                    // Temu specific selectors
+                    '.PriceComponent_wrapper__2Kc_j',
+                    '.ProductPrice_price__3TmZi',
+                    '[data-testid="product-price"]',
+                    '.price-current-value',
+                    // Previous selectors remain...
                     '.price--originalText--Zsc6sMk',
                     '.product-price-current',
                     '.uniform-banner-box-price',
-                    // Amazon
                     '#priceblock_ourprice',
                     '.a-price-whole',
                     '#price_inside_buybox',
-                    // Generic
                     '[itemprop="price"]',
                     '.product-price',
                     '.price-current',
@@ -144,55 +159,58 @@ module.exports = async (req, res) => {
                 let image = null;
                 let price = null;
 
-                // Enhanced title finding logic for Daraz
+                // Enhanced title finding logic with additional checks
                 for (const selector of mobileSelectors) {
-                    const element = document.querySelector(selector);
-                    if (element) {
+                    const elements = document.querySelectorAll(selector);
+                    for (const element of elements) {
                         const text = element.innerText || element.textContent;
                         if (text) {
                             const cleanText = text.trim();
-                            if (cleanText && cleanText.length > 5) {
+                            if (cleanText && cleanText.length > 5 && !cleanText.includes('verify')) {
                                 title = cleanText;
                                 break;
                             }
                         }
                     }
+                    if (title) break;
                 }
 
                 // Enhanced image finding logic
                 for (const selector of imageSelectors) {
-                    const element = document.querySelector(selector);
-                    if (element) {
-                        // Try multiple ways to get the image URL
+                    const elements = document.querySelectorAll(selector);
+                    for (const element of elements) {
                         image = element.src ||
                             element.getAttribute('data-src') ||
                             element.getAttribute('data-lazy-src') ||
                             element.getAttribute('content') ||
-                            element.getAttribute('data-zoom-image');
+                            element.getAttribute('data-zoom-image') ||
+                            element.getAttribute('data-original');  // Additional attribute check
 
-                        if (image && !image.startsWith('data:')) {
+                        if (image && !image.startsWith('data:') && !image.includes('placeholder')) {
                             break;
                         }
                     }
+                    if (image) break;
                 }
 
                 // Enhanced price finding logic
                 for (const selector of priceSelectors) {
-                    const element = document.querySelector(selector);
-                    if (element) {
+                    const elements = document.querySelectorAll(selector);
+                    for (const element of elements) {
                         let priceText = element.innerText || element.textContent;
                         if (priceText) {
-                            // Handle Daraz's specific price format (usually includes "Rs.")
-                            priceText = priceText.replace(/Rs\.|PKR/i, '').trim();
+                            // Handle different currency formats
+                            priceText = priceText.replace(/Rs\.|PKR|₨/i, '').trim();
 
                             // Extract numbers and decimals
                             const priceMatch = priceText.match(/[\d,]+(\.\d{1,2})?/);
                             if (priceMatch) {
-                                // Remove commas and convert to standard format
                                 price = priceMatch[0].replace(/,/g, '');
-                                // Add Rs. prefix for Daraz prices
+                                // Add appropriate currency symbol
                                 if (window.location.href.includes('daraz')) {
                                     price = 'Rs. ' + price;
+                                } else if (window.location.href.includes('temu')) {
+                                    price = '$' + price;
                                 } else if (!price.match(/[\$\£\€]/)) {
                                     price = '$' + price;
                                 }
@@ -200,6 +218,7 @@ module.exports = async (req, res) => {
                             }
                         }
                     }
+                    if (price) break;
                 }
 
                 // Super fallback for image
