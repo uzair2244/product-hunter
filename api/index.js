@@ -179,31 +179,51 @@ module.exports = async (req, res) => {
 
                 // Enhanced price finding logic
                 try {
-                    for (const selector of priceSelectors) {
-                        const elements = document.querySelectorAll(selector);
-                        for (const element of elements) {
-                            // Only process if element is a direct child of pdp-product-price
-                            // and not inside origin-block
-                            if (element.parentElement.classList.contains('pdp-product-price') &&
-                                !element.closest('.origin-block')) {
+                    // Log all price-related elements for debugging
+                    console.log('All price elements:', document.querySelectorAll('.pdp-product-price'));
+                    console.log('Orange price elements:', document.querySelectorAll('.pdp-price_color_orange'));
 
-                                let priceText = element.innerText || element.textContent;
-                                if (priceText) {
-                                    // Clean up the text
-                                    priceText = priceText.trim();
+                    // Simpler selector approach
+                    const mainPriceElement = document.querySelector('.pdp-product-price > .pdp-price_color_orange');
+                    console.log('Main price element:', mainPriceElement);
 
-                                    // Look for price with Rs. format
-                                    const match = priceText.match(/Rs\.?\s*(\d+(?:,\d{3})*(?:\.\d{2})?)/i);
-                                    if (match) {
-                                        const numericValue = match[1].replace(/,/g, '');
-                                        price = 'Rs. ' + numericValue;
-                                        break;
-                                    }
+                    if (mainPriceElement) {
+                        let priceText = mainPriceElement.innerText || mainPriceElement.textContent;
+                        console.log('Found price text:', priceText);
+
+                        if (priceText) {
+                            // Clean up the text
+                            priceText = priceText.trim();
+                            console.log('Cleaned price text:', priceText);
+
+                            // Look for price with Rs. format
+                            const match = priceText.match(/Rs\.?\s*(\d+(?:,\d{3})*(?:\.\d{2})?)/i);
+                            if (match) {
+                                const numericValue = match[1].replace(/,/g, '');
+                                price = 'Rs. ' + numericValue;
+                                console.log('Extracted price:', price);
+                            }
+                        }
+                    }
+
+                    // If still no price, try alternative selector
+                    if (!price) {
+                        const altPriceElement = document.querySelector('span.pdp-price_type_normal.pdp-price_color_orange.pdp-price_size_xl');
+                        console.log('Alternative price element:', altPriceElement);
+
+                        if (altPriceElement && !altPriceElement.closest('.origin-block')) {
+                            let priceText = altPriceElement.innerText || altPriceElement.textContent;
+                            if (priceText) {
+                                const match = priceText.match(/Rs\.?\s*(\d+(?:,\d{3})*(?:\.\d{2})?)/i);
+                                if (match) {
+                                    const numericValue = match[1].replace(/,/g, '');
+                                    price = 'Rs. ' + numericValue;
+                                    console.log('Extracted alternative price:', price);
                                 }
                             }
                         }
-                        if (price) break;
                     }
+
                 } catch (error) {
                     console.error('Price extraction error:', error);
                 }
@@ -234,14 +254,15 @@ module.exports = async (req, res) => {
                         foundSelectors: {
                             title: mobileSelectors.find(s => document.querySelector(s)),
                             image: imageSelectors.find(s => document.querySelector(s)),
-                            price: priceSelectors.find(s => document.querySelector(s))
+                            price: price ? 'found' : 'not found'
                         },
-                        priceElements: Array.from(document.querySelectorAll('.pdp-product-price'))
+                        priceElements: Array.from(document.querySelectorAll('.pdp-product-price, .pdp-price_color_orange'))
                             .map(el => ({
                                 text: el.innerText,
                                 html: el.innerHTML,
                                 classes: Array.from(el.classList).join(' '),
-                                firstChildClasses: el.firstElementChild ? Array.from(el.firstElementChild.classList).join(' ') : null
+                                parentClasses: el.parentElement ? Array.from(el.parentElement.classList).join(' ') : null,
+                                isInOriginBlock: !!el.closest('.origin-block')
                             }))
                     }
                 };
