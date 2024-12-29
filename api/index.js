@@ -59,7 +59,7 @@ module.exports = async (req, res) => {
 
         // Navigate with reduced timeout
         await page.goto(link, {
-            waitUntil: "domcontentloaded",
+            waitUntil: "networkidle0",
             timeout: 4000
         });
 
