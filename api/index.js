@@ -145,14 +145,21 @@ module.exports = async (req, res) => {
                 '.pdp-mod-product-price-view span',
                 '[data-spm="price"]',
                 //Alibaba specific selectors
+                // '.price-list .price-item .price span',
+                // 'div.price-item div.price span',
+                // '.product-price .price-list .price-item .price span',
+                // '.product-price .price span',
+                // '.uniform-banner-box-price',
+                // '[class*="SnapshotPrice"]',
+                // '[class*="unitPrice"]',
+                // '.product-price-value',
+                // Direct tier price selectors
+                '.price-list .price-item:first-child .price span',
                 '.price-list .price-item .price span',
-                'div.price-item div.price span',
-                '.product-price .price-list .price-item .price span',
                 '.product-price .price span',
-                '.uniform-banner-box-price',
-                '[class*="SnapshotPrice"]',
-                '[class*="unitPrice"]',
-                '.product-price-value',
+                '.product-info--top--2GzP8Jx .product-price span',
+                '[class*="price-list"] [class*="price-item"]:first-child [class*="price"] span',
+                '[data-aplus-ae] .price-list .price-item .price span',
                 // New Amazon-specific selectors from the provided HTML
                 '.a-price .a-offscreen',               // Hidden price span
                 // '.a-price-range .a-price .a-offscreen', // Price range
