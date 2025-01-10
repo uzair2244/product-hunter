@@ -340,7 +340,23 @@ module.exports = async (req, res) => {
                                 }
                             }
 
-                            if (price) break;
+                            // if (price) break;
+                            if (price) {
+                                // Remove unwanted characters and identify the currency
+                                const detectedCurrency = price.match(/[$₹₨]|Rs\.?/i)?.[0] || 'Unknown';
+                                price = price.replace(/[$₹₨]|Rs\.?/gi, '').trim(); // Remove currency symbols
+
+                                // Ensure numeric validation
+                                if (parseFloat(price) > 0) {
+                                    price = window.location.href.includes('daraz') ? `Rs. ${price}` : price;
+                                    break;
+                                } else {
+                                    console.error('Invalid price detected:', price);
+                                    break;
+                                }
+
+                                console.log('Final price:', price, 'Currency:', detectedCurrency);
+                            }
                         }
 
                         // Original price finding logic for other sites
