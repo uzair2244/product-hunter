@@ -198,6 +198,19 @@ module.exports = async (req, res) => {
                 // '.a-price-dash',                       // Price dash (range separator)
             ];
 
+            // Define Daraz-specific selectors
+            const darazSelectors = [
+                '.pdp-price_type_normal',
+                '.pdp-product-price',
+                '.pdp-price',
+                '.price-content',
+                '.pdp-mod-product-price',
+                '.origin-block .pdp-price_type_deleted'
+            ];
+
+            // Add them to priceSelectors
+            priceSelectors.unshift(...darazSelectors);
+
             let title = null;
             let image = null;
             let price = null;
@@ -244,6 +257,33 @@ module.exports = async (req, res) => {
                     console.log('Error in price extraction:', err);
                     continue;
                 }
+            }
+
+            // Add Daraz price observer
+            if (window.location.href.includes('daraz')) {
+                const targetNode = document.querySelector('.pdp-product-price') || document.body;
+                const observer = new MutationObserver((mutations) => {
+                    for (const mutation of mutations) {
+                        if (mutation.type === 'childList') {
+                            const priceElement = document.querySelector('.pdp-price_type_normal');
+                            if (priceElement) {
+                                let priceText = priceElement.innerText.trim();
+                                priceText = priceText.replace(/Rs\.|PKR|₨/i, '').trim();
+                                const priceMatch = priceText.match(/[\d,]+(\.\d{1,2})?/);
+                                if (priceMatch) {
+                                    price = `$${priceMatch[0].replace(/,/g, '')}`;
+                                    console.log('Daraz price found:', price);
+                                    observer.disconnect();
+                                }
+                            }
+                        }
+                    }
+                });
+
+                observer.observe(targetNode, {
+                    childList: true,
+                    subtree: true
+                });
             }
 
             // Super fallback for image
