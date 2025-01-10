@@ -129,6 +129,22 @@ module.exports = async (req, res) => {
 
             // Generic price selectors
             const priceSelectors = [
+                // AliExpress/Alibaba
+                '.price--originalText--Zsc6sMk',
+                '.product-price-current',
+                '.uniform-banner-box-price',
+                // Amazon
+                '#priceblock_ourprice',
+                '.a-price-whole',
+                '#price_inside_buybox',
+                // Daraz
+                '.pdp-price',
+                '.pdp-product-price',
+                // Generic
+                '[itemprop="price"]',
+                '.product-price',
+                '.price-current',
+                '.current-price',
                 // New Daraz selectors based on recent structure
                 '.pdp-price_size_xl',                  // Large-sized price
                 '.pdp-mod-product-price-normal',       // Normal price container
