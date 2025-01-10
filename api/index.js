@@ -154,6 +154,7 @@ module.exports = async (req, res) => {
                 '.price-current',
                 '.current-price',
                 // New Daraz selectors based on recent structure
+                'span.pdp-price_type_normal'
                 '.pdp-price_size_xl',                  // Large-sized price
                 '.pdp-mod-product-price-normal',       // Normal price container
                 '.pdp-mod-product-price-value',        // Price value
