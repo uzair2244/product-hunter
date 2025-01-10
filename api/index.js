@@ -141,6 +141,9 @@ module.exports = async (req, res) => {
                     // Previous selectors
                     '.pdp-price',
                     '.pdp-price_type_normal',
+                    'a-price',
+                    'a-text-price',
+                    'apexPriceToPay',
                     '.pdp-product-price span',
                     '.pdp-price_color_orange',
                     '.pdp-mod-product-price-view span',
