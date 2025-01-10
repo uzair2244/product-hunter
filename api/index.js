@@ -17,6 +17,96 @@ async function getBrowser() {
     return _browser;
 }
 
+// Enhanced price extraction function
+const extractPrice = async (page) => {
+    const price = await page.evaluate(() => {
+        // Generic price patterns that match common formats
+        const pricePattern = /(?:Rs\.?|₨|TK|BDT)?\s*([\d,]+(?:\.\d{2})?)/i;
+
+        // Priority list of price selectors (ordered by reliability)
+        const priceSelectors = [
+            // Direct price elements
+            '[data-price]',
+            '[data-testid="product-price"]',
+            '[data-qa="product-price"]',
+
+            // Daraz specific selectors
+            '.pdp-price_size_xl',
+            '.pdp-mod-product-price-normal',
+            '.pdp-price',
+            '#module_product_price_1',
+            '.pdp-price_type_normal',
+
+            // Generic price selectors
+            '[class*="price"]:not([class*="old"]):not([class*="original"]):not([class*="deleted"])',
+            'span[class*="price"]',
+            'div[class*="price"]'
+        ];
+
+        let maxPrice = 0;
+        let bestPrice = null;
+
+        // Function to clean price text
+        const cleanPriceText = (text) => {
+            return text.replace(/[^\d.,]/g, '')
+                .replace(/,/g, '')
+                .trim();
+        };
+
+        // Function to validate price
+        const isValidPrice = (price) => {
+            return price > 10 && price < 1000000; // Reasonable price range
+        };
+
+        // Try selective selectors first
+        for (const selector of priceSelectors) {
+            const elements = document.querySelectorAll(selector);
+            for (const element of elements) {
+                const text = element.innerText || element.textContent;
+                if (!text) continue;
+
+                const match = text.match(pricePattern);
+                if (match) {
+                    const priceValue = parseFloat(cleanPriceText(match[1]));
+                    if (isValidPrice(priceValue) && priceValue > maxPrice) {
+                        maxPrice = priceValue;
+                        bestPrice = `Rs. ${priceValue.toFixed(2)}`;
+                    }
+                }
+            }
+        }
+
+        // If no price found, try aggressive search
+        if (!bestPrice) {
+            const allElements = document.querySelectorAll('*');
+            for (const element of allElements) {
+                const text = element.innerText || element.textContent;
+                if (!text) continue;
+
+                const matches = text.match(pricePattern);
+                if (matches) {
+                    const priceValue = parseFloat(cleanPriceText(matches[1]));
+                    if (isValidPrice(priceValue) && priceValue > maxPrice) {
+                        maxPrice = priceValue;
+                        bestPrice = `Rs. ${priceValue.toFixed(2)}`;
+                    }
+                }
+            }
+        }
+
+        // Debug logging
+        console.log('Price extraction result:', {
+            bestPrice,
+            maxPrice,
+            foundElements: document.querySelectorAll('[class*="price"]').length
+        });
+
+        return bestPrice;
+    });
+
+    return price;
+};
+
 module.exports = async (req, res) => {
     if (req.method !== "POST") {
         return res.status(405).json({ message: "Method Not Allowed" });
@@ -71,8 +161,8 @@ module.exports = async (req, res) => {
                 timeout: 5000
             });
 
-            // Quick extract with minimal selectors
-            const productData = await page.evaluate(() => {
+            // Extract product data
+            const productData = await page.evaluate(async () => {
                 // Generic title selectors that work across multiple sites
                 const mobileSelectors = [
                     // Daraz specific selectors (enhanced)
@@ -128,31 +218,8 @@ module.exports = async (req, res) => {
                     '.gallery-image'
                 ];
 
-                // Generic price selectors
-                const priceSelectors = [
-                    // New Daraz selectors based on recent structure
-                    '.pdp-price_size_xl',                  // Large-sized price
-                    '.pdp-mod-product-price-normal',       // Normal price container
-                    '.pdp-mod-product-price-value',        // Price value
-                    '.pdp-price-number',                   // Price number
-                    '.origin-block-content',               // Price block
-                    '[data-tracking="product-price"]',     // Price tracking attribute
-                    '[data-spm-anchor-id*="price"]',       // Price anchor
-                    // Previous selectors
-                    '.pdp-price',
-                    '.pdp-price_type_normal',
-                    'a-price',
-                    'a-text-price',
-                    'apexPriceToPay',
-                    '.pdp-product-price span',
-                    '.pdp-price_color_orange',
-                    '.pdp-mod-product-price-view span',
-                    '[data-spm="price"]'
-                ];
-
                 let title = null;
                 let image = null;
-                let price = null;
 
                 // Enhanced title finding logic with additional checks
                 for (const selector of mobileSelectors) {
@@ -188,252 +255,7 @@ module.exports = async (req, res) => {
                     if (image) break;
                 }
 
-                // Add this before the price selectors loop
-                if (window.location.href.includes('daraz')) {
-                    let maxPrice = 0;
-                    let maxPriceElement = null;
-
-                    // Try specific Daraz price containers first
-                    const specificSelectors = [
-                        '.pdp-product-price',
-                        '.pdp-block-price',
-                        '.pdp-mod-product-info',
-                        '.origin-block',
-                        '[data-mod-name="pdp_order"]'
-                    ];
-
-                    for (const selector of specificSelectors) {
-                        const container = document.querySelector(selector);
-                        if (container) {
-                            const text = container.innerText || container.textContent;
-                            const matches = text.match(/(?:Rs\.?|₨|TK|BDT)?\s*([\d,]+(?:\.\d{2})?)/gi);
-                            if (matches) {
-                                matches.forEach(match => {
-                                    const numericValue = parseFloat(match.replace(/[^\d.]/g, ''));
-                                    if (numericValue > maxPrice) {
-                                        maxPrice = numericValue;
-                                        maxPriceElement = container;
-                                    }
-                                });
-                            }
-                        }
-                    }
-
-                    // If no price found, try aggressive search
-                    if (maxPrice === 0) {
-                        const allElements = document.querySelectorAll('*');
-                        for (const element of allElements) {
-                            const text = element.innerText || element.textContent;
-                            if (text) {
-                                const matches = text.match(/(?:Rs\.?|₨|TK|BDT)?\s*([\d,]+(?:\.\d{2})?)/gi);
-                                if (matches) {
-                                    matches.forEach(match => {
-                                        const numericValue = parseFloat(match.replace(/[^\d.]/g, ''));
-                                        // Only consider prices above 500 to avoid small numbers
-                                        if (numericValue > maxPrice && numericValue >= 500) {
-                                            maxPrice = numericValue;
-                                            maxPriceElement = element;
-                                        }
-                                    });
-                                }
-                            }
-                        }
-                    }
-
-                    if (maxPrice > 0) {
-                        price = 'Rs. ' + maxPrice;
-                        console.log('Found price:', price);
-                        console.log('Price element:', {
-                            tagName: maxPriceElement?.tagName,
-                            className: maxPriceElement?.className,
-                            id: maxPriceElement?.id,
-                            text: maxPriceElement?.innerText?.trim()
-                        });
-                    }
-
-                    // Add extensive debug logging
-                    console.log('Price Debug:', {
-                        url: window.location.href,
-                        maxPrice,
-                        allPrices: Array.from(document.querySelectorAll('*'))
-                            .filter(el => {
-                                const text = el.innerText || el.textContent;
-                                return text && text.match(/(?:Rs\.?|₨|TK|BDT)?\s*[\d,]+(?:\.\d{2})?/i);
-                            })
-                            .map(el => ({
-                                text: (el.innerText || el.textContent).trim(),
-                                numericValue: parseFloat((el.innerText || el.textContent)
-                                    .match(/[\d,]+(?:\.\d{2})?/)?.[0]?.replace(/,/g, '') || '0'),
-                                element: {
-                                    tagName: el.tagName,
-                                    className: el.className,
-                                    id: el.id
-                                }
-                            }))
-                            .sort((a, b) => b.numericValue - a.numericValue)
-                    });
-                }
-
-                // Enhanced price finding logic
-                for (const selector of priceSelectors) {
-                    try {
-                        // Specific Daraz price extraction
-                        if (window.location.href.includes('daraz')) {
-                            // Method 0: Try direct price module
-                            const priceModule = document.querySelector('#module_product_price_1');
-                            if (priceModule) {
-                                const priceText = priceModule.textContent;
-                                if (priceText) {
-                                    const cleanText = priceText.replace(/Rs\.|PKR|₨/gi, '').trim();
-                                    const priceMatch = cleanText.match(/[\d,]+(\.\d{1,2})?/);
-                                    if (priceMatch) {
-                                        price = 'Rs. ' + priceMatch[0].replace(/,/g, '');
-                                        console.log('Found Daraz price (module method):', price);
-                                        break;
-                                    }
-                                }
-                            }
-
-                            // Method 1: Try structured approach
-                            const priceElements = document.querySelectorAll(selector);
-                            for (const element of priceElements) {
-                                // Skip if it's a deleted/original price
-                                if (element.classList.contains('pdp-price_type_deleted')) continue;
-
-                                // Get direct text content
-                                let priceText = element.innerText || element.textContent;
-                                if (!priceText) continue;
-
-                                // Clean up the price text
-                                priceText = priceText.replace(/Rs\.|PKR|₨/gi, '').trim();
-
-                                // Match the number pattern
-                                const priceMatch = priceText.match(/[\d,]+(\.\d{1,2})?/);
-                                if (priceMatch) {
-                                    price = 'Rs. ' + priceMatch[0].replace(/,/g, '');
-                                    console.log('Found Daraz price:', price);
-                                    break;
-                                }
-                            }
-
-                            // Method 2: Direct parent-child approach
-                            if (!price) {
-                                const priceContainer = document.querySelector('.pdp-product-price');
-                                if (priceContainer) {
-                                    const currentPrice = priceContainer.querySelector(':not(.pdp-price_type_deleted)');
-                                    if (currentPrice) {
-                                        let priceText = currentPrice.innerText.trim();
-                                        priceText = priceText.replace(/Rs\.|PKR|₨/gi, '').trim();
-                                        const priceMatch = priceText.match(/[\d,]+(\.\d{1,2})?/);
-                                        if (priceMatch) {
-                                            price = 'Rs. ' + priceMatch[0].replace(/,/g, '');
-                                            console.log('Found Daraz price (method 2):', price);
-                                        }
-                                    }
-                                }
-                            }
-
-                            if (price) break;
-                        }
-
-                        // Original price finding logic for other sites
-                        const elements = document.querySelectorAll(selector);
-                        for (const element of elements) {
-                            // Ignore if it's a deleted/original price
-                            if (element.classList.contains('pdp-price_type_deleted')) {
-                                console.log('Skipping deleted price');
-                                continue;
-                            }
-
-                            // Handle different currency formats
-                            let priceText = element.innerText || element.textContent;
-                            priceText = priceText.replace(/Rs\.|PKR|₨/i, '').trim();
-                            console.log(`Cleaned price text: ${priceText}`);
-
-                            // Extract numbers and decimals
-                            const priceMatch = priceText.match(/[\d,]+(\.\d{1,2})?/);
-                            if (priceMatch) {
-                                price = priceMatch[0].replace(/,/g, '');
-                                if (window.location.href.includes('daraz')) {
-                                    price = 'Rs. ' + price;
-                                }
-                                console.log(`Final price: ${price}`);
-                                break;
-                            }
-                        }
-                    } catch (err) {
-                        console.log('Error in price extraction:', err);
-                        continue;
-                    }
-                }
-
-                // Super fallback for image
-                if (!image) {
-                    const allImages = document.querySelectorAll('img');
-                    for (const img of allImages) {
-                        const src = img.src || img.getAttribute('data-src');
-                        if (src &&
-                            !src.startsWith('data:') &&
-                            (src.includes('product') ||
-                                src.includes('image') ||
-                                src.match(/\.(jpg|jpeg|png|webp)/i)) &&
-                            !src.includes('icon') &&
-                            !src.includes('logo')) {
-                            image = src;
-                            break;
-                        }
-                    }
-                }
-
-                // Clean up price if needed
-                if (price) {
-                    // Remove any $ symbol if it exists (we only want Rs.)
-                    price = price.replace('$', '');
-                    // Ensure price format is correct
-                    if (!price.startsWith('Rs.')) {
-                        price = 'Rs. ' + price;
-                    }
-                    // Remove any extra text after the price
-                    price = price.split('\n')[0].trim();
-                }
-
-                // Add debug logging
-                console.log('Final price result:', price);
-                console.log('DOM structure:', document.querySelector('#module_product_price_1')?.outerHTML);
-
-                // Add more debug logging
-                console.log('Price extraction debug:', {
-                    url: window.location.href,
-                    priceElements: document.querySelectorAll('.pdp-price').length,
-                    priceContainer: !!document.querySelector('.pdp-product-price'),
-                    finalPrice: price
-                });
-
-                // Add this debug logging right after price extraction
-                console.log('DOM Price Debug:', {
-                    priceModule: document.querySelector('#module_product_price_1')?.textContent,
-                    htmlStructure: document.querySelector('#module_product_price_1')?.innerHTML,
-                    allPriceElements: Array.from(document.querySelectorAll('[class*="price"]')).map(el => ({
-                        class: el.className,
-                        text: el.textContent
-                    }))
-                });
-
-                // Add this debug logging
-                console.log('DOM Structure Debug:', {
-                    bodyText: document.body.innerText,
-                    priceRelatedElements: Array.from(document.querySelectorAll('*'))
-                        .filter(el => {
-                            const text = el.innerText || el.textContent;
-                            return text && text.match(/(?:Rs\.?|₨|TK|BDT)?\s*[\d,]+(\.\d{2})?/i);
-                        })
-                        .map(el => ({
-                            tagName: el.tagName,
-                            className: el.className,
-                            id: el.id,
-                            text: el.innerText || el.textContent
-                        }))
-                });
+                const price = await extractPrice(page);
 
                 return {
                     title,
@@ -444,12 +266,7 @@ module.exports = async (req, res) => {
                             title: mobileSelectors.find(s => document.querySelector(s)),
                             image: imageSelectors.find(s => document.querySelector(s)),
                             price: priceSelectors.find(s => document.querySelector(s))
-                        },
-                        priceAttempts: priceSelectors.map(s => ({
-                            selector: s,
-                            found: !!document.querySelector(s),
-                            text: document.querySelector(s)?.innerText || null
-                        }))
+                        }
                     }
                 };
             });
