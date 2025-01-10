@@ -67,7 +67,7 @@ module.exports = async (req, res) => {
         // Navigate with minimal wait
         await page.goto(link, {
             waitUntil: 'domcontentloaded',
-            timeout: 5000
+            timeout: 7000
         });
 
         // Quick extract with minimal selectors
@@ -75,6 +75,14 @@ module.exports = async (req, res) => {
             // Generic title selectors that work across multiple sites
             const mobileSelectors = [
                 // Daraz specific selectors (enhanced)
+                ".pdp-product-price .pdp-price_type_normal",
+                ".pdp-price:contains('Rs. 927')",
+                ".pdp-product-price > .notranslate.pdp-price.pdp-price_type_normal",
+                "span.pdp-price_type_normal",
+                "div[bis_skin_checked='1'] .pdp-price_type_normal",
+                ".pdp-product-price > span",
+                "span.pdp-price.pdp-price_type_normal.pdp-price_color_orange",
+                ".pdp-product-price > .origin-block .pdp-price_type_normal",
                 '.pdp-mod-product-badge-title',
                 '.pdp-product-title',
                 '.pdp-title',
