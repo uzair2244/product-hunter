@@ -137,6 +137,8 @@ module.exports = async (req, res) => {
                 '.origin-block-content',               // Price block
                 '[data-tracking="product-price"]',     // Price tracking attribute
                 '[data-spm-anchor-id*="price"]',       // Price anchor
+                '#module_product_price_1 .pdp-price_type_normal',
+                '.pdp-mod-product-price .pdp-price_type_normal',
                 '.pdp-price.pdp-price_type_normal.pdp-price_color_orange.pdp-price_size_xl',
                 '.pdp-block.module .pdp-product-price .pdp-price.pdp-price_type_normal.pdp-price_color_orange.pdp-price_size_xl',
 
