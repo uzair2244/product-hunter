@@ -61,14 +61,32 @@ module.exports = async (req, res) => {
             }
         });
 
-        // Convert URL to mobile version
-        const mobileLink = link.replace('www.aliexpress.com', 'm.aliexpress.com');
+        // Handle different sites
+        if (link.includes('amazon')) {
+            // Navigate to Amazon URL directly
+            await page.goto(link, {
+                waitUntil: 'domcontentloaded',
+                timeout: 5000
+            });
 
-        // Navigate with minimal wait
-        await page.goto(mobileLink, {
-            waitUntil: 'domcontentloaded',
-            timeout: 5000
-        });
+            // Extract Amazon price
+            const priceElement = await page.$(`.a-price .a-offscreen`);
+            if (priceElement) {
+                const price = await priceElement.evaluate(el => el.textContent);
+                return price;
+            }
+        } else {
+            // Convert URL to mobile version for AliExpress
+            const mobileLink = link.replace('www.aliexpress.com', 'm.aliexpress.com');
+
+            // Navigate with minimal wait
+            await page.goto(mobileLink, {
+                waitUntil: 'domcontentloaded',
+                timeout: 5000
+            });
+
+            // Existing AliExpress price extraction logic here
+        }
 
         // Quick extract with minimal selectors
         const productData = await page.evaluate(() => {
