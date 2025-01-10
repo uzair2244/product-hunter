@@ -62,10 +62,10 @@ module.exports = async (req, res) => {
         });
 
         // Convert URL to mobile version
-        const mobileLink = link.replace('www.aliexpress.com', 'm.aliexpress.com');
+        // const mobileLink = link.replace('www.aliexpress.com', 'm.aliexpress.com');
 
         // Navigate with minimal wait
-        await page.goto(mobileLink, {
+        await page.goto(link, {
             waitUntil: 'domcontentloaded',
             timeout: 5000
         });
