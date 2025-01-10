@@ -267,7 +267,7 @@ module.exports = async (req, res) => {
                         if (mutation.type === 'childList') {
                             const priceElement = document.querySelector('.pdp-price_type_normal');
                             if (priceElement) {
-                                let priceText = priceElement.innerText.trim();
+                                let priceText = priceElement.innerText || priceElement.textContent;
                                 priceText = priceText.replace(/Rs\.|PKR|₨/i, '').trim();
                                 const priceMatch = priceText.match(/[\d,]+(\.\d{1,2})?/);
                                 if (priceMatch) {
