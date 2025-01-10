@@ -61,32 +61,14 @@ module.exports = async (req, res) => {
             }
         });
 
-        // Handle different sites
-        if (link.includes('amazon')) {
-            // Navigate to Amazon URL directly
-            await page.goto(link, {
-                waitUntil: 'domcontentloaded',
-                timeout: 5000
-            });
+        // Convert URL to mobile version
+        const mobileLink = link.replace('www.aliexpress.com', 'm.aliexpress.com');
 
-            // Extract Amazon price
-            const priceElement = await page.$(`.a-price .a-offscreen`);
-            if (priceElement) {
-                const price = await priceElement.evaluate(el => el.textContent);
-                return price;
-            }
-        } else {
-            // Convert URL to mobile version for AliExpress
-            const mobileLink = link.replace('www.aliexpress.com', 'm.aliexpress.com');
-
-            // Navigate with minimal wait
-            await page.goto(mobileLink, {
-                waitUntil: 'domcontentloaded',
-                timeout: 5000
-            });
-
-            // Existing AliExpress price extraction logic here
-        }
+        // Navigate with minimal wait
+        await page.goto(mobileLink, {
+            waitUntil: 'domcontentloaded',
+            timeout: 5000
+        });
 
         // Quick extract with minimal selectors
         const productData = await page.evaluate(() => {
@@ -158,18 +140,15 @@ module.exports = async (req, res) => {
                 // Previous selectors
                 '.pdp-price',
                 '.pdp-price_type_normal',
-                'a-price',
-                'a-text-price',
-                'apexPriceToPay',
                 '.pdp-product-price span',
                 '.pdp-price_color_orange',
                 '.pdp-mod-product-price-view span',
                 '[data-spm="price"]',
                 // New Amazon-specific selectors from the provided HTML
                 '.a-price .a-offscreen',               // Hidden price span
-                '.a-price-range .a-price .a-offscreen', // Price range
-                '.a-price.a-text-price',               // Text price
-                '.a-price-dash',                       // Price dash (range separator)
+                // '.a-price-range .a-price .a-offscreen', // Price range
+                // '.a-price.a-text-price',               // Text price
+                // '.a-price-dash',                       // Price dash (range separator)
             ];
 
             let title = null;
