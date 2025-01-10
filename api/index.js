@@ -147,6 +147,12 @@ module.exports = async (req, res) => {
                 //Alibaba specific selectors
                 '.price-list .price-item .price span',
                 'div.price-item div.price span',
+                '.product-price .price-list .price-item .price span',
+                '.product-price .price span',
+                '.uniform-banner-box-price',
+                '[class*="SnapshotPrice"]',
+                '[class*="unitPrice"]',
+                '.product-price-value',
                 // New Amazon-specific selectors from the provided HTML
                 '.a-price .a-offscreen',               // Hidden price span
                 // '.a-price-range .a-price .a-offscreen', // Price range
