@@ -141,7 +141,7 @@ module.exports = async (req, res) => {
                 ".pdp-product-price .pdp-price_type_normal",
                 // ".pdp-price:contains('Rs. 927')",
                 ".pdp-product-price > .notranslate.pdp-price.pdp-price_type_normal",
-                // "span.pdp-price_type_normal",
+                "span.pdp-price_type_normal",
                 "div[bis_skin_checked='1'] .pdp-price_type_normal",
                 ".pdp-product-price > span",
                 "span.pdp-price.pdp-price_type_normal.pdp-price_color_orange",
@@ -154,7 +154,6 @@ module.exports = async (req, res) => {
                 '.price-current',
                 '.current-price',
                 // New Daraz selectors based on recent structure
-                'span.pdp-price_type_normal'
                 '.pdp-price_size_xl',                  // Large-sized price
                 '.pdp-mod-product-price-normal',       // Normal price container
                 '.pdp-mod-product-price-value',        // Price value
